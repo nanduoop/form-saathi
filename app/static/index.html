@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>FormSaathi</title>
+<style>
+:root{--bg:#f6f5f1;--card:#fff;--ink:#16181d;--muted:#6b6f78;--line:#e3e1da;--accent:#0f6b4f;--warn:#a15c00;--bad:#b3261e}
+*{box-sizing:border-box} body{margin:0;font-family:system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--ink)}
+header{padding:18px 24px;border-bottom:1px solid var(--line);background:var(--card);display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+header h1{margin:0;font-size:20px} header .tag{color:var(--muted);font-size:13px}
+main{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:16px;padding:16px 24px;max-width:1400px;margin:0 auto}
+@media (max-width:900px){main{grid-template-columns:1fr;padding:12px 16px}}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-bottom:16px}
+.card h2{font-size:14px;margin:0 0 10px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
+button,select,input[type=text]{font:inherit;border-radius:8px;border:1px solid var(--line);padding:8px 12px;background:#fff}
+button{cursor:pointer;background:var(--accent);color:#fff;border:none} button.ghost{background:#fff;color:var(--ink);border:1px solid var(--line)}
+button:disabled{opacity:.5;cursor:default}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.status{font-weight:600;padding:4px 10px;border-radius:999px;background:#eee;font-size:13px}
+.status.running{background:#e7f0ff} .status.needs_input{background:#fff2d6} .status.awaiting_signoff,.status.confirmed{background:#dff3e8} .status.escalated,.status.ineligible{background:#fde3e1}
+.turn{border-left:3px solid var(--line);padding:6px 10px;margin:6px 0;font-size:13px}
+.turn .act{font-family:ui-monospace,monospace;color:var(--accent);word-break:break-word}
+.turn.refused{border-color:var(--bad)} .turn.ok{border-color:var(--accent)}
+.turn pre{white-space:pre-wrap;word-break:break-word;margin:4px 0 0;color:var(--muted);font-size:12px;max-height:120px;overflow:auto}
+.docs{display:flex;gap:10px;flex-wrap:wrap} .doc{width:150px;font-size:12px} .doc img{width:150px;height:100px;object-fit:cover;border:1px solid var(--line);border-radius:6px}
+table{width:100%;border-collapse:collapse;font-size:13px} td,th{padding:5px 6px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+td.v{font-family:ui-monospace,monospace} td.s{color:var(--muted)} tr.missing td{color:var(--bad)}
+.ask{background:#fff8e6;border:1px solid #f0d9a6} .ask .q{font-size:20px;margin:8px 0 12px;line-height:1.4}
+.ask .en{color:var(--muted);font-size:13px}
+.problem{color:var(--bad);font-size:12px} .disc{color:var(--warn);font-size:13px}
+#rec.on{background:var(--bad)}
+</style>
+</head>
+<body>
+<header>
+  <h1>FormSaathi</h1><span class="tag">Fills government forms from your documents and voice. Every field proven.</span>
+  <span id="status" class="status">idle</span>
+</header>
+<main>
+<section>
+  <div class="card" id="startCard">
+    <h2>Start</h2>
+    <div class="row">
+      <label>Applicant language
+        <select id="lang">
+          <option value="hi">हिन्दी Hindi</option><option value="kn">ಕನ್ನಡ Kannada</option><option value="mr">मराठी Marathi</option>
+          <option value="te">తెలుగు Telugu</option><option value="ta">தமிழ் Tamil</option><option value="bn">বাংলা Bengali</option><option value="en">English</option>
+        </select></label>
+    </div>
+    <p class="row"><input type="file" id="files" accept="image/*" multiple capture="environment"><button id="go">Start with my photos</button></p>
+    <p class="row" id="sampleRow"><span class="tag">or try a sample:</span></p>
+  </div>
+  <div class="card ask" id="askCard" hidden>
+    <h2>FormSaathi asks</h2>
+    <div class="q" id="qLocal"></div><div class="en" id="qEn"></div>
+    <p class="row"><button class="ghost" id="speak">🔊 Listen</button><button id="rec">🎙 Hold to answer</button>
+      <input type="text" id="typed" placeholder="or type the answer"><button class="ghost" id="send">Send</button></p>
+    <div id="heard" class="tag"></div>
+  </div>
+  <div class="card" id="doneCard" hidden>
+    <h2>Result</h2><div id="doneText"></div>
+    <p class="row"><a id="formLink" target="_blank"><button class="ghost">Open filled form + evidence</button></a>
+      <button id="confirm" hidden>I confirm these details are true</button></p>
+  </div>
+  <div class="card"><h2>Agent timeline</h2><div id="timeline" class="tag">No case yet.</div></div>
+</section>
+<section>
+  <div class="card"><h2>Documents found (SAM 3.1)</h2><div class="docs" id="docs"></div></div>
+  <div class="card"><h2>Form</h2><div id="disc"></div><table id="fields"></table></div>
+</section>
+</main>
+<script>
+const $ = id => document.getElementById(id);
+const VOICE = {hi:"hi-IN",kn:"kn-IN",mr:"mr-IN",te:"te-IN",ta:"ta-IN",bn:"bn-IN",en:"en-IN"};
+let caseId = null, timer = null, lastQ = null, lang = "hi";
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+
+fetch("/samples").then(r => r.json()).then(s => s.cases.forEach(c => {
+  const b = document.createElement("button"); b.className = "ghost"; b.textContent = c.replace("_", " ");
+  b.onclick = () => start(null, c); $("sampleRow").appendChild(b);
+}));
+
+async function start(files, sample) {
+  const fd = new FormData(); lang = $("lang").value; fd.append("language", lang);
+  if (sample) fd.append("sample", sample);
+  for (const f of files || []) fd.append("files", f);
+  const r = await fetch("/cases", {method: "POST", body: fd});
+  if (!r.ok) return alert((await r.json()).detail);
+  caseId = (await r.json()).case_id; lastQ = null;
+  $("doneCard").hidden = true; $("askCard").hidden = true;
+  clearInterval(timer); timer = setInterval(poll, 1500); poll();
+}
+$("go").onclick = () => $("files").files.length ? start($("files").files) : alert("Choose photos of your documents first");
+
+function short(o) { const s = JSON.stringify(o, null, 1); return s.length > 900 ? s.slice(0, 900) + "…" : s; }
+
+async function poll() {
+  if (!caseId) return;
+  const r = await fetch(`/cases/${caseId}`); if (!r.ok) return;
+  const s = await r.json(); const rec = s.record;
+  const st = s.running ? "running" : s.status;
+  $("status").textContent = st.replace("_", " "); $("status").className = "status " + st;
+  $("timeline").innerHTML = s.history.slice().reverse().map(t => {
+    const o = t.observe || {}; const cls = o.status === "refused" || o.error ? "refused" : (o.status === "awaiting_signoff" ? "ok" : "");
+    const probs = (o.problems || []).map(p => `<div class="problem">✗ ${esc(p.code)}: ${esc(p.detail)}</div>`).join("");
+    return `<div class="turn ${cls}"><b>${t.turn}.</b> ${esc(t.plan)}<div class="act">${esc(t.act)}</div>${probs}<pre>${esc(short(o))}</pre></div>`;
+  }).join("") + (s.error ? `<div class="problem">Error: ${esc(s.error)}</div>` : "");
+  $("docs").innerHTML = rec.documents.map(d => `<div class="doc"><img src="/cases/${caseId}/crop/${d.id}?v=${d.doc_type}" alt="">
+    <div><b>${esc(d.id)}</b> ${esc((d.doc_type || "unread").replace("_", " "))}<br>${esc(d.holder_name || "")}</div></div>`).join("") || '<span class="tag">none yet</span>';
+  renderFields(rec);
+  const q = rec.questions.find(q => !q.answered);
+  if (s.status === "needs_input" && q && !s.running) {
+    $("askCard").hidden = false; $("qLocal").textContent = q.question_local; $("qEn").textContent = q.question_en;
+    if (lastQ !== q.id) { lastQ = q.id; speak(); }
+  } else $("askCard").hidden = true;
+  if (!s.running && ["awaiting_signoff", "confirmed", "escalated", "ineligible", "max_turns"].includes(s.status)) {
+    $("doneCard").hidden = false; $("formLink").href = `/cases/${caseId}/form`;
+    $("confirm").hidden = s.status !== "awaiting_signoff";
+    $("doneText").innerHTML = {
+      awaiting_signoff: "✅ Every field is proven by a document or by your own words. Please check and confirm.",
+      confirmed: "✅ Confirmed. The form is ready to submit.",
+      escalated: "Sent to a human helper: the agent could not prove everything after 3 tries.",
+      ineligible: `Not eligible: ${esc(rec.ineligible_reason?.local || "")}<br><span class="tag">${esc(rec.ineligible_reason?.en || "")}</span>`,
+      max_turns: "Stopped: out of turns."}[s.status];
+    if (s.status === "ineligible" && lastQ !== "inel") { lastQ = "inel"; say(rec.ineligible_reason?.local); }
+    if (s.status !== "awaiting_signoff") clearInterval(timer);
+  }
+}
+
+function renderFields(rec) {
+  const rows = Object.entries(rec.fields).map(([k, e]) => {
+    const src = e.source.type === "document" ? `${e.source.doc_id}: “${e.source.quote}”` : `said (${e.source.utterance_id})`;
+    return `<tr><td>${esc(k)}</td><td class="v">${esc(e.value)}</td><td class="s">${esc(src)}</td></tr>`;
+  });
+  $("fields").innerHTML = rows.join("") || '<tr><td class="tag">nothing filled yet</td></tr>';
+  $("disc").innerHTML = rec.discrepancies.map(d => `<div class="disc">⚠ ${esc(d.field_id)}: ${esc(d.detail)}</div>`).join("");
+}
+
+function say(text) {
+  if (!text || !window.speechSynthesis) return;
+  const u = new SpeechSynthesisUtterance(text); u.lang = VOICE[lang] || "hi-IN";
+  speechSynthesis.cancel(); speechSynthesis.speak(u);
+}
+function speak() { say($("qLocal").textContent); }
+$("speak").onclick = speak;
+
+let rec = null, chunks = [];
+async function startRec() {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({audio: true});
+    rec = new MediaRecorder(stream); chunks = [];
+    rec.ondataavailable = e => chunks.push(e.data);
+    rec.onstop = async () => { stream.getTracks().forEach(t => t.stop()); await sendAnswer(new Blob(chunks, {type: rec.mimeType})); };
+    rec.start(); $("rec").classList.add("on"); $("rec").textContent = "● Recording… release to send";
+  } catch (e) { alert("Microphone not available: " + e.message); }
+}
+function stopRec() { if (rec && rec.state === "recording") { rec.stop(); $("rec").classList.remove("on"); $("rec").textContent = "🎙 Hold to answer"; } }
+$("rec").onmousedown = startRec; $("rec").onmouseup = stopRec; $("rec").onmouseleave = stopRec;
+$("rec").ontouchstart = e => { e.preventDefault(); startRec(); }; $("rec").ontouchend = stopRec;
+
+async function sendAnswer(blob) {
+  const fd = new FormData();
+  if (blob) fd.append("audio", blob, blob.type.includes("mp4") ? "answer.m4a" : "answer.webm");
+  else fd.append("text", $("typed").value);
+  $("heard").textContent = "Sending…";
+  const r = await fetch(`/cases/${caseId}/answer`, {method: "POST", body: fd});
+  const j = await r.json();
+  $("heard").textContent = r.ok ? `Heard: “${j.transcript}”` : j.detail;
+  if (r.ok) { $("typed").value = ""; clearInterval(timer); timer = setInterval(poll, 1500); }
+}
+$("send").onclick = () => $("typed").value.trim() && sendAnswer(null);
+$("confirm").onclick = async () => { await fetch(`/cases/${caseId}/confirm`, {method: "POST"}); poll(); };
+</script>
+</body>
+</html>

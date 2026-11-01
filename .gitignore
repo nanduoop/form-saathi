@@ -218,3 +218,7 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# FormSaathi
+app/state/
+samples/answer_*.m4a

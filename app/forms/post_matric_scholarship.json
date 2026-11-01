@@ -1,0 +1,33 @@
+{
+  "form_id": "post_matric_scholarship",
+  "title": "Post-Matric Scholarship Application",
+  "note": "Demo form modelled on Indian state post-matric scholarship schemes. Eligibility limits below are illustrative demo values, not official ones.",
+  "eligibility": {
+    "categories": ["SC", "ST", "OBC"],
+    "max_annual_income": 250000,
+    "min_previous_percentage": 50
+  },
+  "fields": [
+    {"id": "applicant_name", "label": "Applicant name", "doc_types": ["identity_card", "marksheet"], "voice_ok": false},
+    {"id": "father_name", "label": "Father's name", "doc_types": ["identity_card", "income_certificate", "marksheet"], "voice_ok": true},
+    {"id": "date_of_birth", "label": "Date of birth (DD/MM/YYYY)", "doc_types": ["identity_card", "marksheet"], "voice_ok": false, "check": "date"},
+    {"id": "gender", "label": "Gender", "doc_types": ["identity_card"], "voice_ok": true, "check": "gender"},
+    {"id": "aadhaar_number", "label": "Aadhaar number", "doc_types": ["identity_card"], "voice_ok": false, "check": "aadhaar"},
+    {"id": "address", "label": "Permanent address", "doc_types": ["identity_card", "income_certificate"], "voice_ok": true},
+    {"id": "pin_code", "label": "PIN code", "doc_types": ["identity_card", "income_certificate"], "voice_ok": true, "check": "pin"},
+    {"id": "mobile_number", "label": "Mobile number", "doc_types": [], "voice_ok": true, "check": "mobile"},
+    {"id": "category", "label": "Category (SC/ST/OBC/General)", "doc_types": ["income_certificate", "caste_certificate"], "voice_ok": false, "check": "category"},
+    {"id": "annual_family_income", "label": "Annual family income (Rs)", "doc_types": ["income_certificate"], "voice_ok": false, "check": "income"},
+    {"id": "previous_exam", "label": "Last exam passed", "doc_types": ["marksheet"], "voice_ok": false},
+    {"id": "previous_marks_obtained", "label": "Marks obtained", "doc_types": ["marksheet"], "voice_ok": false, "check": "int"},
+    {"id": "previous_marks_max", "label": "Maximum marks", "doc_types": ["marksheet"], "voice_ok": false, "check": "int"},
+    {"id": "previous_percentage", "label": "Percentage", "doc_types": ["marksheet"], "voice_ok": false, "check": "percentage"},
+    {"id": "current_course", "label": "Course now enrolled in", "doc_types": [], "voice_ok": true},
+    {"id": "institution_name", "label": "College / institution name", "doc_types": [], "voice_ok": true},
+    {"id": "bank_account_holder", "label": "Bank account holder name", "doc_types": ["bank_passbook"], "voice_ok": false},
+    {"id": "bank_account_number", "label": "Bank account number", "doc_types": ["bank_passbook"], "voice_ok": false, "check": "account"},
+    {"id": "ifsc_code", "label": "IFSC code", "doc_types": ["bank_passbook"], "voice_ok": false, "check": "ifsc"},
+    {"id": "bank_name", "label": "Bank and branch", "doc_types": ["bank_passbook"], "voice_ok": false}
+  ],
+  "name_fields": ["applicant_name", "bank_account_holder"]
+}
