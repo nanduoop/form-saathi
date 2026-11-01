@@ -370,7 +370,8 @@ return "Step "+(i+1)+": "+li.textContent;}).join(" ");
 speak(t);
 };
 function renderResult(d){
-var ready = d.status === "awaiting_signoff" || d.confirmed;
+var ready = d.status === "awaiting_signoff" || d.confirmed ||
+d.status === "escalated";
 var elig = d.eligibility;
 if(!ready && !(elig && elig.eligible === false) &&
 d.status !== "ineligible") return;
