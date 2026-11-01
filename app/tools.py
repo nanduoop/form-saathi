@@ -295,7 +295,7 @@ Reply with exactly one JSON object:
 def read_document(record, doc_id):
     # type: (CaseRecord, str) -> Dict[str, Any]
     """Ask Spark to read a document crop; store type, fields and quality."""
-    doc = record.doc()
+    doc = record.doc(doc_id)
     if doc is None:
         return {"ok": False, "error": "unknown doc_id %r" % (doc_id,)}
     if doc.get("rejected"):

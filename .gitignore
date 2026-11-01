@@ -221,6 +221,7 @@ __marimo__/
 
 # FormSaathi
 app/state/
+app/research_cache/
 samples/answer_*.m4a
 ._*
 .DS_Store

@@ -6,7 +6,8 @@ its turn history to app/state/<case_id>.json after every turn.
 import os
 from typing import Any, Dict, List, Optional
 
-STATUSES = ("open", "needs_input", "awaiting_signoff", "escalated", "ineligible")
+STATUSES = ("open", "needs_input", "needs_photo", "awaiting_signoff", "escalated",
+            "ineligible")
 
 LANGUAGES = ("hi", "kn", "mr", "te", "ta", "bn", "en")
 
@@ -48,7 +49,7 @@ class CaseRecord(object):
         self.refusals = []  # type: List[Dict[str, Any]]
         # pipeline fields (later stages own most of these)
         self.stage = "collect"
-        self.log = []  # type: List[str]
+        self.log = []  # type: List[Any]
         self.profile = None  # type: Optional[Dict[str, Any]]
         self.schemes = []  # type: List[Any]
         self.research = None  # type: Optional[Dict[str, Any]]
@@ -56,8 +57,11 @@ class CaseRecord(object):
         self.photo_requests = []  # type: List[Any]
 
     def add_log(self, message):
-        # type: (str) -> None
-        self.log.append(str(message))
+        # type: (Any) -> None
+        if isinstance(message, dict):
+            self.log.append(message)
+        else:
+            self.log.append(str(message))
 
     def doc(self, doc_id):
         # type: (str) -> Optional[Dict[str, Any]]
