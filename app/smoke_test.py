@@ -29,6 +29,12 @@ step(f"chat {CHAT_MODEL}", lambda: chat("Reply with the single word: ready").con
 step("vision read", lambda: chat("What is the Aadhaar No printed on the left card? Reply with digits only.", image_path=PHOTO).content)
 for p in ("document", "paper", "card"):
     step(f"{SEGMENT_MODEL} '{p}'", lambda p=p: segment(PHOTO, p))
+def wonder():
+    r = client.chat.completions.create(model="muse-wonder-1.0", messages=[{"role": "user", "content": "In one sentence, what kind of model are you and what can you generate?"}])
+    return r.choices[0].message.content
+
+
+step("muse-wonder-1.0 (what is it?)", wonder)
 audio = os.path.join(ROOT, "samples", "answer_hi.m4a")
 if os.path.exists(audio):
     step(f"transcribe {VOICE_MODEL}", lambda: transcribe(audio, language="hi"))

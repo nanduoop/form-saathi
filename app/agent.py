@@ -31,7 +31,7 @@ def _summary(record):
         "applicant_language": record.language,
         "photos": len(record.photos), "photos_scanned": record.scanned_photos,
         "documents": [{"id": d["id"], "doc_type": d["doc_type"], "holder_name": d["holder_name"],
-                       "fields": d["fields"]} for d in record.documents],
+                       "fields": d["fields"]} for d in record.documents if not d.get("rejected")],
         "filled": record.fields,
         "empty": [f["id"] for f in form["fields"] if f["id"] not in record.fields],
         "questions": record.questions, "utterances": [{k: u[k] for k in ("id", "text", "question_id")} for u in record.utterances],

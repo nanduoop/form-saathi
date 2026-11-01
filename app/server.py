@@ -16,12 +16,14 @@ from fastapi import FastAPI, File, Form, HTTPException, UploadFile  # noqa: E402
 from fastapi.responses import FileResponse, HTMLResponse  # noqa: E402
 
 import agent  # noqa: E402
+import pipeline  # noqa: E402
 from meta_client import transcribe  # noqa: E402
 from render import render_form  # noqa: E402
 
 APP_DIR = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(APP_DIR)
 SAMPLES = os.path.join(ROOT, "samples", "photos")
+RETAKES = os.path.join(ROOT, "samples", "retakes")
 
 app = FastAPI(title="FormSaathi")
 _runs = {}
@@ -110,7 +112,7 @@ def start_case(language: str = Form("hi"), sample: str = Form(""), files: Option
     for p in photos:
         rec.add_photo(p)
     agent.save(rec, [], 0, "running")
-    _background(case_id, lambda: agent.run(rec))
+    _background(case_id, lambda: pipeline.run(case_id))
     return {"case_id": case_id}
 
 
@@ -154,7 +156,7 @@ def answer(case_id: str, text: str = Form(""), audio: Optional[UploadFile] = Fil
             raise HTTPException(502, f"transcription failed: {e}. Type the answer instead.")
     if not text.strip():
         raise HTTPException(400, "empty answer")
-    _background(case_id, lambda: agent.answer(case_id, text, audio_path))
+    _background(case_id, lambda: pipeline.answer(case_id, text, audio_path))
     return {"status": "running", "transcript": text}
 
 
@@ -162,10 +164,25 @@ def answer(case_id: str, text: str = Form(""), audio: Optional[UploadFile] = Fil
 def more_photos(case_id: str, files: List[UploadFile] = File(...)):
     _check(case_id)
     s = _state(case_id)
-    if s["status"] not in ("needs_input", "escalated", "max_turns"):
+    if s["status"] not in ("needs_photo", "needs_input", "escalated", "max_turns"):
         raise HTTPException(400, f"case is {s['status']}")
     paths = _save_photos(case_id, files, len(s["record"]["photos"]))
-    _background(case_id, lambda: agent.add_photos(case_id, paths))
+    _background(case_id, lambda: pipeline.add_photos(case_id, paths))
+    return {"status": "running"}
+
+
+@app.post("/cases/{case_id}/sample_retake")
+def sample_retake(case_id: str):
+    """Demo helper: send the prepared retake photo for a sample case."""
+    _check(case_id)
+    s = _state(case_id)
+    if s["status"] != "needs_photo":
+        raise HTTPException(400, f"case is {s['status']}")
+    names = sorted(os.listdir(RETAKES)) if os.path.isdir(RETAKES) else []
+    if not names:
+        raise HTTPException(404, "no sample retakes")
+    paths = [os.path.join(RETAKES, n) for n in names]
+    _background(case_id, lambda: pipeline.add_photos(case_id, paths))
     return {"status": "running"}
 
 

@@ -13,7 +13,8 @@ from verification.checks import check_value, parse_money  # noqa: E402
 
 LANGUAGES = {"hi": "Hindi", "kn": "Kannada", "mr": "Marathi", "te": "Telugu", "ta": "Tamil",
              "bn": "Bengali", "en": "English"}
-DOC_TYPES = ["identity_card", "marksheet", "income_certificate", "caste_certificate", "bank_passbook", "other"]
+DOC_TYPES = ["identity_card", "marksheet", "income_certificate", "caste_certificate", "bank_passbook",
+             "land_record", "crop_field_photo", "other"]
 SAM_PROMPTS = ["document", "paper", "card"]
 
 
@@ -81,6 +82,16 @@ def find_documents(record, crop_dir):
             crop_path = os.path.join(crop_dir, f"d{n}.jpg")
             img.crop(r).save(crop_path, quality=92)
             did = record.add_document(photo, list(r), crop_path)
+            doc = record.doc(did)
+            doc["photo_index"] = idx
+            doc["sam_found"] = b is not None
+            if b is not None:
+                raw = box_pixels(b, img.width, img.height, pad=0)
+                m = 0.006
+                doc["cut_edges"] = [e for e, hit in (("left", raw[0] <= img.width * m), ("top", raw[1] <= img.height * m),
+                                                     ("right", raw[2] >= img.width * (1 - m)),
+                                                     ("bottom", raw[3] >= img.height * (1 - m))) if hit]
+                doc["area_ratio"] = round((raw[2] - raw[0]) * (raw[3] - raw[1]) / float(img.width * img.height), 3)
             found.append({"doc_id": did, "photo": idx, "box": list(r), "sam_box": b is not None})
         record.scanned_photos.append(idx)
     if not found:
@@ -96,7 +107,9 @@ def read_document(record, doc_id):
               "never guess a digit. Return ONLY JSON: "
               '{"doc_type": one of ' + str(DOC_TYPES) + ', "holder_name": "name of the person the document belongs to", '
               '"fields": [{"key": "printed label", "value": "value", "quote": "the exact printed line containing it"}], '
-              '"unreadable": ["labels you could not read clearly"]}')
+              '"unreadable": ["labels you could not read clearly"], '
+              '"quality": {"usable": true/false, "issues": ["blur"|"glare"|"too_dark"|"tilted"|"cut_off"|"too_far"|"not_a_document"], '
+              '"advice": "one short instruction to retake the photo, or empty"}}')
     try:
         j = chat_json(prompt, image_path=doc["crop"])
     except Exception as e:
@@ -104,8 +117,10 @@ def read_document(record, doc_id):
     doc["doc_type"] = j.get("doc_type") if j.get("doc_type") in DOC_TYPES else "other"
     doc["holder_name"] = j.get("holder_name")
     doc["fields"] = [f for f in j.get("fields", []) if isinstance(f, dict)]
+    doc["quality"] = j.get("quality") if isinstance(j.get("quality"), dict) else {"usable": True, "issues": []}
+    doc["unreadable"] = j.get("unreadable", [])
     return {"doc_id": doc_id, "doc_type": doc["doc_type"], "holder_name": doc["holder_name"],
-            "fields": doc["fields"], "unreadable": j.get("unreadable", [])}
+            "fields": doc["fields"], "unreadable": doc["unreadable"], "quality": doc["quality"]}
 
 
 def fill_field(record, field_id, value, doc_id=None, quote=None, utterance_id=None):

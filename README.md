@@ -6,7 +6,20 @@ Many Indian families miss scholarships and benefits they qualify for, or pay a m
 
 Built for the Meta Global AI Developer Hackathon (Oct–Nov 2026).
 
-## How it works
+## A team of agents
+
+| Agent | Job | How it is kept honest |
+|---|---|---|
+| **Intake + capture coach** | SAM 3.1 finds every document in each photo; Spark reads it | SAM geometry rejects documents cut off at the frame edge or too far away; Spark flags blur and glare. The applicant is told *in their language* exactly how to retake |
+| **Profile agent** | builds the applicant profile (category, income, education...) | any value not printed on a document is dropped |
+| **Scheme scout** | checks every scheme in the catalog (scholarships, PM Vidyalaxmi, Pragati, PM-KISAN...) | deterministic rules with explained reasons; unknowns become questions |
+| **Web researcher** | finds how to apply: portal, documents, steps, deadlines | only `.gov.in` / `.nic.in` (and listed official) pages; every fact must quote a sentence that is literally on the fetched page, or it is thrown out |
+| **Form agent** | fills the actual form, asks the applicant by voice | the verification gate below |
+| **Planner** | one action plan in the applicant's language, read aloud | may only cite verified research facts; invented citations are stripped |
+
+Research pages are cached in `app/research_cache/`, so the demo runs even when a government site is slow (`RESEARCH_OFFLINE=1` forces the cache).
+
+## How the form agent works
 
 ```
 photos ──► SAM 3.1 finds and crops every document in each photo
@@ -35,7 +48,7 @@ The agent runs a plan → act → observe loop with one tool per turn, saving st
 |---|---|
 | `sam-3.1` | locating and cropping each document in a phone photo (several per photo) |
 | `muse-spark-1.3` | the agent itself, reading documents, translating questions, the independent judge |
-| Muse Voice Transcribe | the applicant's spoken answers in Indian languages |
+| `muse-voice-transcribe-1.0` | the applicant's spoken answers in Indian languages |
 
 ## Run it
 
@@ -47,7 +60,7 @@ python app/smoke_test.py               # checks every model live
 uvicorn app.server:app --reload        # http://127.0.0.1:8000
 ```
 
-Click **case a** for the eligible sample (with the name mismatch) or **case b** for an applicant whose income is above the limit. In the terminal: `python app/run_agent.py samples/photos/case_a_*.jpg --lang hi`.
+Click **case a** for the eligible sample (with the name mismatch), **case b** for an applicant whose income is above the limit, or **case c** where the passbook photo is cut off and the capture coach asks for a retake (then click *Use sample retake*). In the terminal: `python app/run_agent.py samples/photos/case_a_*.jpg --lang hi`.
 
 Offline tests (no API key needed): `python tests/test_offline.py`
 

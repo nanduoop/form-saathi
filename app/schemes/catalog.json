@@ -1,0 +1,55 @@
+{
+  "note": "Starting knowledge only. Rules are simplified demo values; the research agent confirms each scheme from official government pages and cites them.",
+  "schemes": [
+    {
+      "id": "post_matric_scholarship",
+      "name": "Post-Matric Scholarship (SC/ST/OBC)",
+      "for": "students in Class 11 and above from SC, ST or OBC families",
+      "rules": {"category_in": ["SC", "ST", "OBC"], "max_income": 250000, "min_education": "class_10"},
+      "form_id": "post_matric_scholarship",
+      "search": ["post matric scholarship OBC Karnataka how to apply documents required", "National Scholarship Portal post matric scholarship OBC apply"],
+      "seed_urls": ["https://scholarships.gov.in/"],
+      "extra_domains": []
+    },
+    {
+      "id": "central_sector_scholarship",
+      "name": "Central Sector Scheme of Scholarship for College and University Students",
+      "for": "students above the 80th percentile in Class 12 doing a regular degree",
+      "rules": {"max_income": 450000, "min_percentage": 80, "min_education": "class_12"},
+      "form_id": null,
+      "search": ["Central Sector Scheme of Scholarship college university students eligibility apply"],
+      "seed_urls": ["https://scholarships.gov.in/"],
+      "extra_domains": []
+    },
+    {
+      "id": "pm_vidyalaxmi",
+      "name": "PM Vidyalaxmi (education loan interest support)",
+      "for": "students admitted to quality higher education institutions who need an education loan",
+      "rules": {"max_income": 800000, "min_education": "class_12"},
+      "form_id": null,
+      "search": ["PM Vidyalaxmi scheme eligibility how to apply education loan"],
+      "seed_urls": ["https://pmvidyalaxmi.co.in/"],
+      "extra_domains": ["pmvidyalaxmi.co.in"]
+    },
+    {
+      "id": "pragati_scholarship",
+      "name": "AICTE Pragati Scholarship for Girls",
+      "for": "girl students in AICTE-approved technical degree or diploma courses",
+      "rules": {"gender": "Female", "max_income": 800000, "course_type": "technical"},
+      "form_id": null,
+      "search": ["AICTE Pragati scholarship for girls eligibility how to apply"],
+      "seed_urls": ["https://www.aicte-india.org/"],
+      "extra_domains": ["aicte-india.org"]
+    },
+    {
+      "id": "pm_kisan",
+      "name": "PM-KISAN income support for farmer families",
+      "for": "land-holding farmer families",
+      "rules": {"owns_farmland": true},
+      "form_id": null,
+      "search": ["PM Kisan registration eligibility documents required"],
+      "seed_urls": ["https://pmkisan.gov.in/"],
+      "extra_domains": []
+    }
+  ]
+}

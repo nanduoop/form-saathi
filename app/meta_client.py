@@ -17,7 +17,7 @@ client = OpenAI(
 
 CHAT_MODEL = os.getenv("CHAT_MODEL", "muse-spark-1.3")
 SEGMENT_MODEL = os.getenv("SEGMENT_MODEL", "sam-3.1")
-VOICE_MODEL = os.getenv("VOICE_MODEL", "muse-voice-transcribe")
+VOICE_MODEL = os.getenv("VOICE_MODEL", "muse-voice-transcribe-1.0")
 
 
 def _data_url(image_path):

@@ -27,6 +27,14 @@ class CaseRecord:
         self.status = "open"
         self.refusals = 0
         self.ineligible_reason = None
+        # multi-agent pipeline
+        self.stage = "intake"      # intake -> profile -> scout -> research -> form -> plan -> done
+        self.log = []              # [{agent, message, data}]
+        self.profile = None
+        self.schemes = []          # scout verdicts
+        self.research = {}         # scheme_id -> verified facts
+        self.plan = None
+        self.photo_requests = []   # capture coach: {doc_id, advice_en, advice_local, answered}
         self._n = {"doc": 0, "utt": 0, "q": 0, "disc": 0}
 
     @property
@@ -82,6 +90,6 @@ class CaseRecord:
     @classmethod
     def from_dict(cls, d):
         r = cls(d["case_id"], d.get("form_id", "post_matric_scholarship"), d.get("language", "hi"))
-        for k, v in d.items():
+        for k, v in d.items():  # unknown keys from older states are kept too
             setattr(r, k, v)
         return r

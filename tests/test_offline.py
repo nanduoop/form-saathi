@@ -165,8 +165,111 @@ def test_rules_catch_bad_values():
     print("rules ok")
 
 
+def run_pipeline_case_c():
+    """Multi-agent pipeline on case C: capture coach rejects a cut-off passbook, retake, research, form, plan."""
+    import pipeline
+    import web
+    tmp = tempfile.mkdtemp()
+    agent.STATE_DIR = tmp
+    W, H = 1800, 1250
+
+    def fake_segment(photo, prompt):
+        if "passbook_cut_off" in photo:
+            return [{"x1": 73, "y1": 123, "x2": 923, "y2": 692, "w": W, "h": H},
+                    {"x1": 985, "y1": 858, "x2": 1775, "y2": 1250, "w": W, "h": H}]
+        if "retake" in photo:
+            return [{"x1": 180, "y1": 180, "x2": 1000, "y2": 760, "w": 1200, "h": 1000}]
+        return [{"x1": 150, "y1": 100, "x2": 1250, "y2": 1300, "w": 1400, "h": 1500}]
+    tools.segment = fake_segment
+    pipeline.segment = fake_segment
+    fake_chat_json.order = ["identity_card", "bank_passbook", "marksheet", "income_certificate", "bank_passbook"]
+    tools.chat_json = fake_chat_json
+    judge.chat_json = fake_chat_json
+    page = ("Post Matric Scholarship for OBC students. Apply online on the National Scholarship Portal at scholarships.gov.in. "
+            "Students must upload the income certificate and caste certificate issued by the competent authority.")
+    web.search = lambda q, max_results=8, offline=False: [{"title": "NSP", "url": "https://scholarships.gov.in/", "snippet": ""},
+                                                          {"title": "blog", "url": "https://randomblog.com/x", "snippet": ""}]
+    web.fetch = lambda url, max_chars=20000, offline=False: {"url": url, "text": page * 3}
+
+    def fake_pipeline_json(prompt, image_path=None, system=None):
+        if "Build the applicant's profile" in prompt:
+            return {"name": "Priya Ramesh Patil", "gender": "Female", "date_of_birth": "14/08/2007", "state": "Karnataka",
+                    "district": "Vijayanagara", "category": "OBC", "annual_family_income": "Rs. 1,20,000",
+                    "education_level": "class_12", "last_exam_percentage": "75.33", "course_type": None,
+                    "owns_farmland": None, "evidence": {}}
+        if "extract how to apply" in prompt:
+            return {"facts": [
+                {"kind": "portal", "text": "Apply online on the National Scholarship Portal", "source": 0,
+                 "quote": "Apply online on the National Scholarship Portal at scholarships.gov.in."},
+                {"kind": "deadline", "text": "Deadline is 31 October", "source": 0, "quote": "The last date is 31 October."}]}
+        if "Write an action plan" in prompt:
+            return {"summary": "You qualify.", "steps": [
+                {"title": "Fix surname", "detail": "Get Patel corrected to Patil", "scheme_id": None, "fact_ids": []},
+                {"title": "Apply on NSP", "detail": "Upload documents", "scheme_id": "post_matric_scholarship",
+                 "fact_ids": ["post_matric_scholarship#1", "made_up#9"]}]}
+        return fake_chat_json(prompt, image_path, system)
+    pipeline.chat_json = fake_pipeline_json
+
+    photos = sorted(os.path.join(ROOT, "samples", "photos", n) for n in os.listdir(os.path.join(ROOT, "samples", "photos"))
+                    if n.startswith("case_c_"))
+    rec = CaseRecord("pc", language="hi")
+    for p in photos:
+        rec.add_photo(p)
+    agent.save(rec, [], 0, "running")
+    out = pipeline.run("pc")
+    assert out["status"] == "needs_photo", out
+    rec, _, _, _ = agent.load("pc")
+    assert rec.photo_requests and "bottom" in rec.photo_requests[0]["advice_en"], rec.photo_requests
+    assert rec.doc("d2")["rejected"]
+
+    q = lambda d, k: next(f["quote"] for f in DOCS[d]["fields"] if f["key"] == k)
+    entries = [{"field_id": f, "value": v, "doc_id": d, "quote": q(dt, k)} for f, v, d, dt, k in [
+        ("applicant_name", "Priya Ramesh Patil", "d1", "identity_card", "Name"),
+        ("father_name", "Ramesh Patil", "d1", "identity_card", "Father"),
+        ("date_of_birth", "14/08/2007", "d1", "identity_card", "DOB"),
+        ("gender", "Female", "d1", "identity_card", "Gender"),
+        ("aadhaar_number", "9999 0000 1231", "d1", "identity_card", "Aadhaar No"),
+        ("address", "H.No 12, Ward 3, Shivaji Nagar, Hosapete, Karnataka", "d1", "identity_card", "Address"),
+        ("pin_code", "583201", "d1", "identity_card", "PIN"),
+        ("previous_exam", "II PUC (Class 12)", "d3", "marksheet", "Exam"),
+        ("previous_marks_obtained", "452", "d3", "marksheet", "Grand Total"),
+        ("previous_marks_max", "600", "d3", "marksheet", "Grand Total"),
+        ("previous_percentage", "75.33", "d3", "marksheet", "Percentage"),
+        ("category", "OBC", "d4", "income_certificate", "Category"),
+        ("annual_family_income", "120000", "d4", "income_certificate", "Income"),
+        ("bank_name", "SAMPLE GRAMEENA BANK", "d5", "bank_passbook", "Bank"),
+        ("bank_account_holder", "PRIYA R PATIL", "d5", "bank_passbook", "Account Holder"),
+        ("bank_account_number", "30412345678", "d5", "bank_passbook", "A/c No"),
+        ("ifsc_code", "SMPL0001234", "d5", "bank_passbook", "IFSC")]]
+    agent.chat = Script([("fill_fields", {"entries": entries}), ("check_eligibility", {}),
+                         ("ask_applicant", {"question_en": "Mobile, course, college?",
+                                            "field_ids": ["mobile_number", "current_course", "institution_name"]})])
+    retake = os.path.join(ROOT, "samples", "retakes", "case_c_passbook_retake.jpg")
+    out = pipeline.add_photos("pc", [retake])
+    assert out["status"] == "needs_input", out
+    rec, _, _, _ = agent.load("pc")
+    r = rec.research["post_matric_scholarship"]
+    assert len(r["facts"]) == 1 and r["dropped"] == 1, r            # the made-up deadline is thrown out
+    assert all("randomblog" not in u for u in r["sources"]), r       # non-government site never used
+    assert {v["id"]: v["verdict"] for v in rec.schemes}["post_matric_scholarship"] == "eligible"
+    agent.chat = Script([
+        ("fill_fields", {"entries": [{"field_id": "mobile_number", "value": "9845012345", "utterance_id": "u1"},
+                                     {"field_id": "current_course", "value": "B.Sc first year", "utterance_id": "u1"},
+                                     {"field_id": "institution_name", "value": "GFGC Hosapete", "utterance_id": "u1"}]}),
+        ("flag_discrepancy", {"target": "doc:d4", "detail": "Patel vs Patil"}),
+        ("submit_form", {})])
+    out = pipeline.answer("pc", "98450 12345, B.Sc first year, GFGC Hosapete")
+    rec, _, _, status = agent.load("pc")
+    assert status == "awaiting_signoff" and rec.stage == "done", (status, rec.stage)
+    assert rec.plan["steps"][1]["fact_ids"] == ["post_matric_scholarship#1"], rec.plan   # made-up citation removed
+    assert rec.plan["local"].startswith("[hi]")
+    shutil.rmtree(tmp)
+    print("pipeline ok: coach rejected cut-off passbook -> retake -> profile -> scout -> research (1 fact kept, 1 dropped) -> form -> plan")
+
+
 if __name__ == "__main__":
     test_checks()
     test_rules_catch_bad_values()
     run_case()
+    run_pipeline_case_c()
     print("ALL OFFLINE TESTS PASSED")

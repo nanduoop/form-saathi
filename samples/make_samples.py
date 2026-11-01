@@ -159,7 +159,23 @@ def make_case(prefix, p, seed):
     bg.convert("RGB").save(os.path.join(OUT, f"{prefix}_3_income_certificate.jpg"), quality=88)
 
 
+def make_retake_case(p, seed):
+    """Case C: the passbook runs off the bottom edge of the photo; the capture coach must ask for a retake."""
+    os.makedirs(os.path.join(HERE, "retakes"), exist_ok=True)
+    bg = table(1800, 1250, seed)
+    place(bg, identity_card(p), (70, 120), 4)
+    place(bg, passbook(p), (980, 860), -4)          # bottom half falls outside the frame
+    bg.convert("RGB").save(os.path.join(OUT, "case_c_1_passbook_cut_off.jpg"), quality=88)
+    for src, dst in (("case_a_2_marksheet.jpg", "case_c_2_marksheet.jpg"),
+                     ("case_a_3_income_certificate.jpg", "case_c_3_income_certificate.jpg")):
+        Image.open(os.path.join(OUT, src)).save(os.path.join(OUT, dst), quality=88)
+    bg = table(1200, 1000, seed + 5)
+    place(bg, passbook(p), (190, 190), 3)
+    bg.convert("RGB").save(os.path.join(HERE, "retakes", "case_c_passbook_retake.jpg"), quality=88)
+
+
 if __name__ == "__main__":
     make_case("case_a", BASE, 7)
     make_case("case_b", dict(BASE, income="3,10,000", cert_name="Priya Ramesh Patil", cert_father="Ramesh Patil"), 11)
+    make_retake_case(BASE, 21)
     print("wrote", sorted(os.listdir(OUT)))

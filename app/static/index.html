@@ -30,6 +30,16 @@ td.v{font-family:ui-monospace,monospace} td.s{color:var(--muted)} tr.missing td{
 .ask .en{color:var(--muted);font-size:13px}
 .problem{color:var(--bad);font-size:12px} .disc{color:var(--warn);font-size:13px}
 #rec.on{background:var(--bad)}
+.stages{display:flex;gap:6px;flex-wrap:wrap;margin:0;padding:0;list-style:none}
+.stages li{font-size:12px;padding:5px 10px;border-radius:999px;background:#eee;color:var(--muted)}
+.stages li.done{background:#dff3e8;color:var(--accent)} .stages li.now{background:var(--accent);color:#fff}
+.log{font-size:13px;margin:6px 0;padding-left:10px;border-left:3px solid var(--line)} .log b{color:var(--accent)}
+.scheme{border:1px solid var(--line);border-radius:10px;padding:8px 10px;margin:6px 0;font-size:13px}
+.scheme .v{font-weight:600} .v.eligible{color:var(--accent)} .v.not_eligible{color:var(--bad)} .v.needs_info{color:var(--warn)}
+.fact{font-size:12px;margin:3px 0 3px 10px} .fact a{color:var(--muted)}
+.retake{background:#fde3e1;border:1px solid #f3b8b3} .retake img{max-width:220px;border-radius:6px;border:1px solid var(--line)}
+.plan ol{padding-left:20px} .plan li{margin:6px 0} .plan .local{font-size:17px;white-space:pre-wrap;line-height:1.5}
+.status.needs_photo{background:#fde3e1} .status.planned{background:#dff3e8}
 </style>
 </head>
 <body>
@@ -37,6 +47,7 @@ td.v{font-family:ui-monospace,monospace} td.s{color:var(--muted)} tr.missing td{
   <h1>FormSaathi</h1><span class="tag">Fills government forms from your documents and voice. Every field proven.</span>
   <span id="status" class="status">idle</span>
 </header>
+<div style="padding:10px 24px;max-width:1400px;margin:0 auto"><ul class="stages" id="stages"></ul></div>
 <main>
 <section>
   <div class="card" id="startCard">
@@ -51,6 +62,14 @@ td.v{font-family:ui-monospace,monospace} td.s{color:var(--muted)} tr.missing td{
     <p class="row"><input type="file" id="files" accept="image/*" multiple capture="environment"><button id="go">Start with my photos</button></p>
     <p class="row" id="sampleRow"><span class="tag">or try a sample:</span></p>
   </div>
+  <div class="card retake" id="retakeCard" hidden>
+    <h2>Capture coach: please retake</h2><div id="retakeList"></div>
+    <p class="row"><input type="file" id="retakeFiles" accept="image/*" multiple capture="environment">
+      <button id="retakeGo">Send new photo</button><button class="ghost" id="retakeSample">Use sample retake</button></p>
+  </div>
+  <div class="card plan" id="planCard" hidden><h2>Your plan</h2>
+    <div class="local" id="planLocal"></div><p><button class="ghost" id="planSpeak">🔊 Listen</button></p>
+    <div id="planSteps"></div></div>
   <div class="card ask" id="askCard" hidden>
     <h2>FormSaathi asks</h2>
     <div class="q" id="qLocal"></div><div class="en" id="qEn"></div>
@@ -66,6 +85,8 @@ td.v{font-family:ui-monospace,monospace} td.s{color:var(--muted)} tr.missing td{
   <div class="card"><h2>Agent timeline</h2><div id="timeline" class="tag">No case yet.</div></div>
 </section>
 <section>
+  <div class="card"><h2>Agents</h2><div id="agentLog" class="tag">idle</div></div>
+  <div class="card"><h2>Schemes (scout + web research)</h2><div id="schemes" class="tag">not yet</div></div>
   <div class="card"><h2>Documents found (SAM 3.1)</h2><div class="docs" id="docs"></div></div>
   <div class="card"><h2>Form</h2><div id="disc"></div><table id="fields"></table></div>
 </section>
@@ -108,13 +129,13 @@ async function poll() {
   }).join("") + (s.error ? `<div class="problem">Error: ${esc(s.error)}</div>` : "");
   $("docs").innerHTML = rec.documents.map(d => `<div class="doc"><img src="/cases/${caseId}/crop/${d.id}?v=${d.doc_type}" alt="">
     <div><b>${esc(d.id)}</b> ${esc((d.doc_type || "unread").replace("_", " "))}<br>${esc(d.holder_name || "")}</div></div>`).join("") || '<span class="tag">none yet</span>';
-  renderFields(rec);
+  renderFields(rec); renderPipeline(s, rec);
   const q = rec.questions.find(q => !q.answered);
   if (s.status === "needs_input" && q && !s.running) {
     $("askCard").hidden = false; $("qLocal").textContent = q.question_local; $("qEn").textContent = q.question_en;
     if (lastQ !== q.id) { lastQ = q.id; speak(); }
   } else $("askCard").hidden = true;
-  if (!s.running && ["awaiting_signoff", "confirmed", "escalated", "ineligible", "max_turns"].includes(s.status)) {
+  if (!s.running && rec.stage === "done") {
     $("doneCard").hidden = false; $("formLink").href = `/cases/${caseId}/form`;
     $("confirm").hidden = s.status !== "awaiting_signoff";
     $("doneText").innerHTML = {
@@ -122,7 +143,8 @@ async function poll() {
       confirmed: "✅ Confirmed. The form is ready to submit.",
       escalated: "Sent to a human helper: the agent could not prove everything after 3 tries.",
       ineligible: `Not eligible: ${esc(rec.ineligible_reason?.local || "")}<br><span class="tag">${esc(rec.ineligible_reason?.en || "")}</span>`,
-      max_turns: "Stopped: out of turns."}[s.status];
+      max_turns: "Stopped: out of turns.",
+      planned: "Plan ready. No form to fill for the schemes this applicant qualifies for."}[s.status] || "";
     if (s.status === "ineligible" && lastQ !== "inel") { lastQ = "inel"; say(rec.ineligible_reason?.local); }
     if (s.status !== "awaiting_signoff") clearInterval(timer);
   }
@@ -136,6 +158,42 @@ function renderFields(rec) {
   $("fields").innerHTML = rows.join("") || '<tr><td class="tag">nothing filled yet</td></tr>';
   $("disc").innerHTML = rec.discrepancies.map(d => `<div class="disc">⚠ ${esc(d.field_id)}: ${esc(d.detail)}</div>`).join("");
 }
+
+const STAGES = [["intake","Intake + capture coach"],["profile","Profile"],["scout","Scheme scout"],["research","Web research"],["form","Form agent"],["plan","Planner"]];
+function renderPipeline(s, rec) {
+  const cur = rec.stage || "intake", idx = STAGES.findIndex(x => x[0] === cur);
+  $("stages").innerHTML = STAGES.map(([k, l], i) => `<li class="${cur === "done" || i < idx ? "done" : (i === idx ? "now" : "")}">${l}</li>`).join("");
+  $("agentLog").innerHTML = (rec.log || []).map(l => `<div class="log"><b>${esc(l.agent)}</b> ${esc(l.message)}</div>`).join("") || "idle";
+  $("schemes").innerHTML = (rec.schemes || []).map(v => {
+    const r = (rec.research || {})[v.id];
+    const facts = r ? r.facts.map(f => `<div class="fact">• ${esc(f.text)} <a href="${esc(f.url)}" target="_blank" title="${esc(f.quote)}">[source]</a></div>`).join("") : "";
+    return `<div class="scheme"><span class="v ${v.verdict}">${esc(v.verdict.replace("_", " "))}</span> · ${esc(v.name)}
+      <div class="tag">${esc(v.reasons.join("; "))}</div>${facts}${r && r.dropped ? `<div class="tag">${r.dropped} unproven facts thrown out</div>` : ""}</div>`;
+  }).join("") || "not yet";
+  const asks = (rec.photo_requests || []).filter(r => !r.answered);
+  $("retakeCard").hidden = !(s.status === "needs_photo" && asks.length && !s.running);
+  if (!$("retakeCard").hidden) {
+    $("retakeList").innerHTML = asks.map(a => `<p><img src="/cases/${caseId}/crop/${a.doc_id}" alt=""><br>
+      <span style="font-size:18px">${esc(a.advice_local)}</span><br><span class="tag">${esc(a.advice_en)}</span></p>`).join("");
+    if (lastQ !== "photo" + asks[0].doc_id) { lastQ = "photo" + asks[0].doc_id; say(asks.map(a => a.advice_local).join(" ")); }
+  }
+  if (rec.plan) {
+    $("planCard").hidden = false; $("planLocal").textContent = rec.plan.local || "";
+    $("planSteps").innerHTML = `<p>${esc(rec.plan.summary || "")}</p><ol>` + (rec.plan.steps || []).map(st =>
+      `<li><b>${esc(st.title)}</b>: ${esc(st.detail)} ${(st.sources || []).map(u => `<a class="tag" href="${esc(u)}" target="_blank">[source]</a>`).join(" ")}</li>`).join("") + "</ol>";
+  } else $("planCard").hidden = true;
+}
+$("planSpeak").onclick = () => say($("planLocal").textContent);
+$("retakeGo").onclick = async () => {
+  if (!$("retakeFiles").files.length) return alert("Choose the new photo first");
+  const fd = new FormData(); for (const f of $("retakeFiles").files) fd.append("files", f);
+  const r = await fetch(`/cases/${caseId}/photos`, {method: "POST", body: fd}); if (!r.ok) alert((await r.json()).detail);
+  clearInterval(timer); timer = setInterval(poll, 1500);
+};
+$("retakeSample").onclick = async () => {
+  const r = await fetch(`/cases/${caseId}/sample_retake`, {method: "POST"}); if (!r.ok) alert((await r.json()).detail);
+  clearInterval(timer); timer = setInterval(poll, 1500);
+};
 
 function say(text) {
   if (!text || !window.speechSynthesis) return;

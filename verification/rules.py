@@ -28,8 +28,8 @@ def check_rules(record):
         value, src = entry["value"], entry.get("source") or {}
         if src.get("type") == "document":
             doc = record.doc(src.get("doc_id"))
-            if doc is None:
-                add("BAD_SOURCE", fid, f"cites unknown document {src.get('doc_id')}")
+            if doc is None or doc.get("rejected"):
+                add("BAD_SOURCE", fid, f"cites unknown or rejected document {src.get('doc_id')}")
                 continue
             if spec["doc_types"] and doc.get("doc_type") not in spec["doc_types"]:
                 add("WRONG_DOC_TYPE", fid, f"'{spec['label']}' must come from {spec['doc_types']}, not {doc.get('doc_type')}")
@@ -68,6 +68,8 @@ def check_rules(record):
             if fid != "applicant_name" and other and name_similarity(name, other) < NAME_MATCH and fid not in acknowledged:
                 add("NAME_MISMATCH", fid, f"'{other}' does not match applicant name '{name}'")
         for doc in record.documents:
+            if doc.get("rejected"):
+                continue
             holder = doc.get("holder_name")
             key = f"doc:{doc['id']}"
             if holder and name_similarity(name, holder) < NAME_MATCH and key not in acknowledged:
