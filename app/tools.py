@@ -562,23 +562,31 @@ def submit_form(record):
     # type: (CaseRecord) -> Dict[str, Any]
     """Run the verification gate; passed forms await applicant signoff."""
     try:
-        import verify  # Task 4 gate (app/verify.py), when it exists
-        result = verify.verify_case(record)
+        from verification.gate import run_gate
     except ImportError:
+        run_gate = None  # type: ignore[assignment]
+    if run_gate is None:
         result = _minimal_gate(record)
+        if result.get("ok"):
+            record.status = "awaiting_signoff"
+            record.add_log("submit_form: passed, awaiting signoff")
+            return {"ok": True, "status": record.status}
+        refusals = []
+        for detail in result.get("refusals", []):
+            rid = "r%d" % (len(record.refusals) + 1)
+            record.refusals.append({"id": rid, "detail": detail})
+            refusals.append({"id": rid, "detail": detail})
+        record.add_log("submit_form: refused (%d)" % len(refusals))
+        return {"ok": False, "refusals": refusals}
+    try:
+        gate_result = run_gate(record)
     except Exception as e:
         return {"ok": False, "error": "verification failed: %s" % (e,)}
-    if result.get("ok"):
-        record.status = "awaiting_signoff"
-        record.add_log("submit_form: passed, awaiting signoff")
+    if gate_result.get("ok"):
         return {"ok": True, "status": record.status}
-    refusals = []
-    for detail in result.get("refusals", []):
-        rid = "r%d" % (len(record.refusals) + 1)
-        record.refusals.append({"id": rid, "detail": detail})
-        refusals.append({"id": rid, "detail": detail})
-    record.add_log("submit_form: refused (%d)" % len(refusals))
-    return {"ok": False, "refusals": refusals}
+    last = record.refusals[-1] if record.refusals else {"detail": "refused"}
+    return {"ok": False, "refusals": [last],
+            "status": gate_result.get("status")}
 
 
 def _schema(name, description, properties, required):
