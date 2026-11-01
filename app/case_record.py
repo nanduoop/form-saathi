@@ -55,6 +55,8 @@ class CaseRecord(object):
         self.research = None  # type: Optional[Dict[str, Any]]
         self.plan = None  # type: Optional[Dict[str, Any]]
         self.photo_requests = []  # type: List[Any]
+        self.confirmed = False  # type: bool
+        self.confirmed_at = None  # type: Optional[str]
 
     def add_log(self, message):
         # type: (Any) -> None
@@ -93,6 +95,8 @@ class CaseRecord(object):
             "research": self.research,
             "plan": self.plan,
             "photo_requests": list(self.photo_requests),
+            "confirmed": bool(self.confirmed),
+            "confirmed_at": self.confirmed_at,
         }
 
     @classmethod
@@ -123,4 +127,6 @@ class CaseRecord(object):
         rec.research = data.get("research")
         rec.plan = data.get("plan")
         rec.photo_requests = list(data.get("photo_requests") or [])
+        rec.confirmed = bool(data.get("confirmed", False))
+        rec.confirmed_at = data.get("confirmed_at")
         return rec

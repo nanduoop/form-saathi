@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FormSaathi console</title>
+<style>
+:root{--ink:#20241f;--muted:#5c635a;--line:#d8dcd4;--paper:#ffffff;
+--wash:#eef3ec;--accent:#14532d;--accent-ink:#ffffff;--warn:#8a5a00;
+--warnbg:#fdf3dd;--bad:#a4262c;--badbg:#fbe9e7;--okbg:#e6f2e9;--radius:8px}
+*{box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Verdana,sans-serif;
+color:var(--ink);background:var(--paper);margin:0 auto;max-width:880px;
+padding:12px 14px 60px;line-height:1.55}
+header{border-bottom:3px solid var(--accent);padding:10px 0 12px;margin-bottom:14px}
+header h1{font-size:1.4rem;margin:0}
+header p{margin:4px 0 0;color:var(--muted);font-size:.92rem}
+section.card{border:1px solid var(--line);border-radius:var(--radius);
+padding:12px;margin:12px 0}
+section.card h2{font-size:1.05rem;margin:0 0 8px}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+button,input[type=file],select,textarea,input[type=text]{font-size:1rem}
+button{background:var(--accent);color:var(--accent-ink);border:0;
+border-radius:6px;padding:10px 14px;min-height:44px;cursor:pointer}
+button.secondary{background:#fff;color:var(--accent);
+border:1px solid var(--accent)}
+button:disabled{opacity:.5;cursor:default}
+select{padding:10px;min-height:44px;border:1px solid var(--line);border-radius:6px}
+input[type=text],textarea{width:100%;padding:10px;border:1px solid var(--line);
+border-radius:6px}
+ol.stages{list-style:none;display:flex;gap:4px;padding:0;margin:8px 0;flex-wrap:wrap}
+ol.stages li{flex:1 1 70px;text-align:center;font-size:.78rem;padding:6px 2px;
+border:1px solid var(--line);border-radius:20px;color:var(--muted)}
+ol.stages li.now{background:var(--accent);color:#fff;border-color:var(--accent);
+font-weight:bold}
+ol.stages li.past{background:var(--wash)}
+.badge{display:inline-block;padding:2px 10px;border-radius:20px;font-size:.82rem;
+border:1px solid var(--line)}
+.badge.eligible,.badge.ok{background:var(--okbg)}
+.badge.not_eligible,.badge.bad{background:var(--badbg)}
+.badge.needs_info,.badge.warn{background:var(--warnbg)}
+#log{max-height:240px;overflow:auto;background:#101410;color:#d7e3d3;
+border-radius:6px;padding:10px;font-family:ui-monospace,Menlo,monospace;
+font-size:.8rem;white-space:pre-wrap;margin:0}
+.scheme{border:1px solid var(--line);border-radius:6px;padding:10px;margin:8px 0}
+.scheme h3{margin:0 0 4px;font-size:1rem}
+.fact{font-size:.9rem;margin:6px 0 6px 12px}
+.fact q{color:#333}
+.doc{border:1px solid var(--line);border-radius:6px;padding:10px;margin:8px 0}
+.doc img{max-width:100%;border:1px solid #999;border-radius:4px}
+.kv{display:grid;grid-template-columns:minmax(120px,180px) 1fr;gap:4px 10px;
+font-size:.92rem;margin:8px 0}
+.kv dt{color:var(--muted)}.kv dd{margin:0}
+.src{font-size:.85rem;color:#333}
+.plan ol{margin:8px 0;padding-left:22px}
+.hidden{display:none}
+#recBtn.recording{background:var(--bad)}
+.note{font-size:.85rem;color:var(--muted)}
+</style>
+</head>
+<body>
+<header>
+<h1>FormSaathi console</h1>
+<p>Scholarship form helper: photos in, verified facts and a filled form out.</p>
+</header>
+
+<section class="card" id="startCard">
+<h2>Start a case</h2>
+<div class="row">
+<label for="lang">Language</label>
+<select id="lang">
+<option value="hi">Hindi</option><option value="kn">Kannada</option>
+<option value="mr">Marathi</option><option value="te">Telugu</option>
+<option value="ta">Tamil</option><option value="bn">Bengali</option>
+<option value="en">English</option>
+</select>
+</div>
+<p>Try a sample set:</p>
+<div class="row" id="sampleBtns">
+<button data-sample="case_a">Sample A (eligible)</button>
+<button data-sample="case_b">Sample B (income too high)</button>
+<button data-sample="case_c">Sample C (cut-off photo)</button>
+</div>
+<p>Or upload your own photos:</p>
+<div class="row">
+<input type="file" id="uploads" accept="image/*" multiple>
+<button id="uploadBtn" class="secondary">Start with uploads</button>
+</div>
+<p class="note" id="startMsg"></p>
+</section>
+
+<section class="card hidden" id="caseCard">
+<h2>Case <span id="caseId"></span></h2>
+<ol class="stages" id="stages"></ol>
+<p>Status: <span class="badge" id="statusBadge"></span>
+<span class="note" id="jobNote"></span></p>
+</section>
+
+<section class="card hidden" id="logCard">
+<h2>Agent log</h2>
+<pre id="log"></pre>
+</section>
+
+<section class="card hidden" id="schemeCard">
+<h2>Schemes</h2>
+<div id="schemes"></div>
+</section>
+
+<section class="card hidden" id="docCard">
+<h2>Documents found</h2>
+<div id="docs"></div>
+</section>
+
+<section class="card hidden" id="fieldCard">
+<h2>Filled fields</h2>
+<dl class="kv" id="fields"></dl>
+</section>
+
+<section class="card hidden" id="qCard">
+<h2>Question for you</h2>
+<p id="qtext"></p>
+<div class="row">
+<button id="speakBtn" class="secondary">Speak question</button>
+<button id="recBtn">Hold to record answer</button>
+</div>
+<p class="note">Hold the button while you speak, release to send.
+Or type below:</p>
+<div class="row">
+<input type="text" id="qinput" placeholder="Type your answer">
+<button id="qsend">Send</button>
+</div>
+</section>
+
+<section class="card hidden" id="retakeCard">
+<h2>Photo help</h2>
+<div id="retakes"></div>
+<div class="row">
+<input type="file" id="retakeFiles" accept="image/*" multiple>
+<button id="retakeBtn" class="secondary">Send retakes</button>
+<button id="sampleRetakeBtn" class="secondary">Use sample retake</button>
+</div>
+</section>
+
+<section class="card hidden" id="planCard">
+<h2>Your action plan</h2>
+<p id="planSummary"></p>
+<div class="plan"><ol id="planSteps"></ol></div>
+<button id="planSpeak" class="secondary">Read plan aloud</button>
+</section>
+
+<section class="card hidden" id="resultCard">
+<h2>Result</h2>
+<p id="resultLine"></p>
+<p><a id="formLink" href="#">Open the filled form</a></p>
+<button id="confirmBtn">I confirm these details are true</button>
+</section>
+
+<script>
+"use strict";
+var caseId = null, lastQ = null, lastPoll = null;
+var VOICE = {hi:"hi-IN",kn:"kn-IN",mr:"mr-IN",te:"te-IN",ta:"ta-IN",
+bn:"bn-IN",en:"en-IN"};
+var STAGES = ["intake","profile","scout","research","form","plan","done"];
+function el(id){return document.getElementById(id);}
+function esc(s){return String(s == null ? "" : s)
+.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")
+.replace(/"/g,"&quot;");}
+function show(id){el(id).classList.remove("hidden");}
+function langVoice(){return VOICE[el("lang").value] || "hi-IN";}
+function speak(text){
+try{
+var u = new SpeechSynthesisUtterance(text);
+u.lang = langVoice();
+window.speechSynthesis.cancel();
+window.speechSynthesis.speak(u);
+}catch(e){}}
+function api(path, opts){
+return fetch(path, opts).then(function(r){
+if(!r.ok) return r.text().then(function(t){throw new Error(r.status+" "+t);});
+var ct = r.headers.get("content-type") || "";
+if(ct.indexOf("application/json") >= 0) return r.json();
+return r.text();
+});}
+function startPoll(id){
+caseId = id; lastQ = null;
+el("caseId").textContent = id;
+["caseCard","logCard","schemeCard","docCard","fieldCard"].forEach(show);
+poll();
+}
+function poll(){
+if(!caseId) return;
+api("/cases/"+encodeURIComponent(caseId)).then(render).catch(function(e){
+el("jobNote").textContent = "poll error: "+e.message;});
+}
+setInterval(poll, 1500);
+function render(d){
+var order = STAGES.indexOf(d.stage);
+el("stages").innerHTML = STAGES.map(function(s, i){
+var cls = i < order ? "past" : (i === order ? "now" : "");
+return '<li class="'+cls+'">'+esc(s)+'</li>';}).join("");
+var sb = el("statusBadge");
+sb.textContent = d.status + (d.confirmed ? " (confirmed)" : "");
+sb.className = "badge " + (d.status === "awaiting_signoff" ? "ok" :
+(d.status === "ineligible" || d.status === "escalated") ? "bad" :
+(d.status === "needs_input" || d.status === "needs_photo") ? "warn" : "");
+var job = d.job || {};
+el("jobNote").textContent = job.state === "running" ? "working..." :
+job.state === "error" ? ("worker error: "+(job.error||"")) : "";
+var log = (d.log || []).map(function(e){
+if(typeof e === "string") return e;
+return "["+(e.agent||"?")+"] "+(e.message||"");}).join("\n");
+el("log").textContent = log;
+renderSchemes(d); renderDocs(d); renderFields(d);
+renderQuestion(d); renderRetakes(d); renderPlan(d); renderResult(d);
+}
+function renderSchemes(d){
+if(!d.schemes || !d.schemes.length) return;
+show("schemeCard");
+var research = d.research || {};
+el("schemes").innerHTML = d.schemes.map(function(s){
+var res = research[s.scheme_id] || {facts:[],sources:[]};
+var facts = (res.facts||[]).map(function(f){
+var link = f.url ? ' <a href="'+esc(f.url)+
+'" target="_blank" rel="noopener">source</a>' : "";
+return '<div class="fact">'+esc(f.text)+' <q>'+esc(f.quote)+
+'</q>['+esc(f.id)+']'+link+'</div>';}).join("");
+return '<div class="scheme"><h3>'+esc(s.title||s.scheme_id)+
+' <span class="badge '+esc(s.status)+'">'+esc(s.status)+
+'</span></h3><div>'+(s.reasons||[]).map(esc).join("; ")+
+'</div>'+facts+'</div>';}).join("");
+}
+function renderDocs(d){
+if(!d.documents || !d.documents.length) return;
+show("docCard");
+el("docs").innerHTML = d.documents.map(function(doc){
+var img = '<img loading="lazy" alt="document crop" src="/cases/'+
+esc(caseId)+'/crop/'+esc(doc.id)+'">';
+var flds = (doc.fields||[]).map(function(f){
+return "<div>"+esc(f.key)+" = <b>"+esc(f.value)+
+'</b> <span class="src">&ldquo;'+esc(f.quote)+'&rdquo;</span></div>';
+}).join("");
+return '<div class="doc"><h3>'+esc(doc.id)+' &middot; '+
+esc(doc.doc_type||"not read yet")+(doc.rejected?" (rejected)":"")+
+'</h3>'+img+'<div class="src">photo '+(doc.photo_index+1)+
+(doc.sam_found ? ", found by SAM" : "")+
+(doc.cut_edges ? ", edges cut off" : "")+
+(doc.unreadable && doc.unreadable.length ?
+", unreadable: "+esc(doc.unreadable.join(", ")) : "")+'</div>'+flds+
+"</div>";}).join("");
+}
+function sourceHtml(d, fid, filled){
+var s = filled.source || {};
+if(s.type === "document"){
+var crop = '<a href="/cases/'+esc(caseId)+'/crop/'+esc(s.doc_id)+
+'">crop '+esc(s.doc_id)+'</a>';
+return '<span class="src">document '+esc(s.doc_id)+' &mdash; &ldquo;'+
+esc(s.quote||"")+'&rdquo; ('+crop+')</span>';
+}
+var txt = "";
+(d.utterances||[]).forEach(function(u){
+if(u.id === s.utterance_id) txt = u.text;});
+return '<span class="src">applicant said &ldquo;'+esc(txt||s.utterance_id)+
+'&rdquo;</span>';
+}
+function renderFields(d){
+var keys = Object.keys(d.fields||{});
+if(!keys.length) return;
+show("fieldCard");
+el("fields").innerHTML = keys.map(function(fid){
+var f = d.fields[fid];
+return "<dt>"+esc(fid)+"</dt><dd><b>"+esc(f.value)+"</b><br>"+
+sourceHtml(d, fid, f)+"</dd>";}).join("");
+}
+function renderQuestion(d){
+var open = (d.questions||[]).filter(function(q){return !q.answered;});
+if(!open.length) return;
+show("qCard");
+var q = open[open.length-1];
+if(lastQ !== q.id){
+lastQ = q.id;
+el("qtext").textContent = q.question_local || q.question_en;
+speak(q.question_local || q.question_en);
+}else{
+el("qtext").textContent = q.question_local || q.question_en;
+}
+el("qsend").onclick = function(){
+var t = el("qinput").value.trim();
+if(!t) return;
+sendAnswer({text:t, question_id:q.id});
+el("qinput").value = "";
+};
+}
+function sendAnswer(payload, isForm){
+var opts;
+if(isForm){opts = {method:"POST", body:payload};}
+else{opts = {method:"POST", headers:{"Content-Type":"application/json"},
+body:JSON.stringify(payload)};}
+api("/cases/"+encodeURIComponent(caseId)+"/answer", opts)
+.then(poll).catch(function(e){alert("answer failed: "+e.message);});
+}
+var recorder = null, chunks = [];
+function recStart(){
+if(!navigator.mediaDevices) {alert("recording not available"); return;}
+navigator.mediaDevices.getUserMedia({audio:true}).then(function(stream){
+chunks = [];
+recorder = new MediaRecorder(stream);
+recorder.ondataavailable = function(e){chunks.push(e.data);};
+recorder.onstop = function(){
+stream.getTracks().forEach(function(t){t.stop();});
+var blob = new Blob(chunks, {type:recorder.mimeType||"audio/webm"});
+var fd = new FormData();
+fd.append("audio", blob, "answer.webm");
+sendAnswer(fd, true);
+el("recBtn").classList.remove("recording");
+el("recBtn").textContent = "Hold to record answer";
+};
+recorder.start();
+el("recBtn").classList.add("recording");
+el("recBtn").textContent = "Recording... release to send";
+}).catch(function(){alert("microphone blocked by the browser");});
+}
+function recStop(){if(recorder && recorder.state !== "inactive") recorder.stop();}
+(function(){
+var b = el("recBtn");
+b.addEventListener("pointerdown", function(e){e.preventDefault(); recStart();});
+b.addEventListener("pointerup", recStop);
+b.addEventListener("pointerleave", function(){
+if(recorder && recorder.state === "recording") recStop();});
+})();
+el("speakBtn").onclick = function(){speak(el("qtext").textContent);};
+function renderRetakes(d){
+var reqs = d.photo_requests || [];
+var showCard = reqs.length || d.status === "needs_photo";
+if(!showCard) return;
+show("retakeCard");
+el("retakes").innerHTML = reqs.map(function(r){
+return "<p><b>"+esc(r.doc_id||"photo")+"</b>: "+
+esc(r.advice_local||r.advice_en||"")+'</p>';}).join("") ||
+"<p>Waiting for clearer photos.</p>";
+}
+el("retakeBtn").onclick = function(){
+var files = el("retakeFiles").files;
+if(!files.length){alert("choose photo files first"); return;}
+var fd = new FormData();
+for(var i=0;i<files.length;i++) fd.append("photos", files[i]);
+api("/cases/"+encodeURIComponent(caseId)+"/photos",
+{method:"POST", body:fd}).then(poll)
+.catch(function(e){alert("upload failed: "+e.message);});
+};
+el("sampleRetakeBtn").onclick = function(){
+api("/cases/"+encodeURIComponent(caseId)+"/sample_retake", {method:"POST"})
+.then(poll).catch(function(e){alert("retake failed: "+e.message);});
+};
+function renderPlan(d){
+if(!d.plan || !d.plan.steps) return;
+show("planCard");
+el("planSummary").textContent = d.plan.summary || "";
+el("planSteps").innerHTML = d.plan.steps.map(function(s, i){
+var links = (s.source_urls||[]).map(function(u, j){
+return ' <a href="'+esc(u)+'" target="_blank" rel="noopener">['+(j+1)+
+']</a>';}).join("");
+return "<li><b>"+esc(s.title)+"</b>: "+esc(s.detail)+links+"</li>";
+}).join("");
+}
+el("planSpeak").onclick = function(){
+var t = el("planSummary").textContent + ". " +
+Array.prototype.map.call(
+el("planSteps").querySelectorAll("li"), function(li, i){
+return "Step "+(i+1)+": "+li.textContent;}).join(" ");
+speak(t);
+};
+function renderResult(d){
+var ready = d.status === "awaiting_signoff" || d.confirmed;
+var elig = d.eligibility;
+if(!ready && !(elig && elig.eligible === false) &&
+d.status !== "ineligible") return;
+show("resultCard");
+var line = "Status: "+d.status+".";
+if(elig) line += " Eligibility: "+
+(elig.eligible ? "eligible" : "not eligible")+".";
+if(d.confirmed) line += " Confirmed by applicant.";
+el("resultLine").textContent = line;
+el("formLink").href = "/cases/"+encodeURIComponent(caseId)+"/form";
+var btn = el("confirmBtn");
+if(d.status === "awaiting_signoff" && !d.confirmed){
+btn.style.display = "";
+btn.onclick = function(){
+api("/cases/"+encodeURIComponent(caseId)+"/confirm", {method:"POST"})
+.then(render).catch(function(e){alert("confirm failed: "+e.message);});
+};
+}else{btn.style.display = "none";}
+}
+Array.prototype.forEach.call(
+document.querySelectorAll("#sampleBtns button"), function(b){
+b.onclick = function(){
+var fd = new FormData();
+fd.append("language", el("lang").value);
+fd.append("sample", b.getAttribute("data-sample"));
+el("startMsg").textContent = "Starting...";
+api("/cases", {method:"POST", body:fd}).then(function(d){
+el("startMsg").textContent = "";
+startPoll(d.case_id);
+}).catch(function(e){
+el("startMsg").textContent = "start failed: "+e.message;});
+};
+});
+el("uploadBtn").onclick = function(){
+var files = el("uploads").files;
+if(!files.length){el("startMsg").textContent = "choose photos first";
+return;}
+var fd = new FormData();
+fd.append("language", el("lang").value);
+for(var i=0;i<files.length;i++) fd.append("photos", files[i]);
+el("startMsg").textContent = "Uploading and starting...";
+api("/cases", {method:"POST", body:fd}).then(function(d){
+el("startMsg").textContent = "";
+startPoll(d.case_id);
+}).catch(function(e){
+el("startMsg").textContent = "start failed: "+e.message;});
+};
+</script>
+</body>
+</html>
