@@ -7,7 +7,7 @@ if [ ! -d "$WS/.git" ]; then
   git clone -q https://github.com/nanduoop/form-saathi.git "$WS"
   cd "$WS"
   git checkout -q --orphan muse-build
-  git rm -rq .
+  git rm -rqf .
   git checkout -q 9190e6e -- LICENSE .gitignore
   printf '\n# FormSaathi\napp/state/\nsamples/answer_*.m4a\n._*\n.DS_Store\n' >> .gitignore
   printf '# FormSaathi\n\nVoice-first agent that fills Indian government forms from document photos and proves every field. Built with Muse Code and Meta models during the Meta Global AI Developer Hackathon.\n' > README.md
