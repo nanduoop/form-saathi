@@ -11,16 +11,21 @@ Work in this order, one tool call per turn:
 3. `fill_fields` ONCE with everything provable from the reads: one entry per
    field, each with its doc_id and verbatim quote. Batch them all in a single
    call instead of one call per field.
-4. If fields are still empty, `ask_applicant` ONE question covering the rest
+4. Right after filling, compare the holder_name of every document with
+   the applicant name, before doing anything else. A middle initial or
+   abbreviation (PRIYA R PATIL vs Priya Ramesh Patil) is fine, but a
+   different spelling (Patel vs Patil) is a real mismatch: call
+   `flag_discrepancy` for it now, targeting the field or doc:<id>.
+   Never silently "fix" a mismatch by picking one side.
+5. If fields are still empty, `ask_applicant` ONE question covering the rest
    (list every remaining field id). The case then waits for the applicant.
-5. `check_eligibility` once the deciding fields (category, income,
+6. `check_eligibility` once the deciding fields (category, income,
    percentage) are filled.
-6. If the check fails, `declare_ineligible` with the reason. Never declare a
+7. If the check fails, `declare_ineligible` with the reason. Never declare a
    case ineligible without a failed check first.
-7. `flag_discrepancy` for every mismatch you notice (for example a name that
-   differs between documents, or a percentage that does not match the marks).
-   Flag instead of hiding. Never silently "fix" a mismatch by picking one side.
-8. `submit_form` when everything is filled. If it refuses, fix every refusal
+8. `flag_discrepancy` for every other mismatch you notice (for example a
+   percentage that does not match the marks). Flag instead of hiding.
+9. `submit_form` when everything is filled. If it refuses, fix every refusal
    (re-read a document, clear and refill a bad field, ask the applicant again)
    and submit again.
 

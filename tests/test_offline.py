@@ -13,7 +13,8 @@ script runs fully offline:
 
 Covers:
   1. format checks (Aadhaar, IFSC, mobile, PIN, date, money-in-quote,
-     name similarity Patil/Patel).
+     name similarity Patil/Patel, Verhoeff sample numbers) plus the
+     vision refusal/consent-retry behaviour.
   2. deterministic rules (INVALID_AADHAAR, NEEDS_DOCUMENT, BAD_SOURCE,
      MISSING_FIELD, ELIGIBILITY_NOT_CHECKED).
   3. case_a scripted form run: needs_input -> answer -> submit refused
@@ -54,6 +55,10 @@ from verification import judge as judge_mod  # noqa: E402
 
 COUNT = [0]
 
+# Real chat_json, kept before install_stubs() swaps in the fakes, so the
+# refusal-retry test exercises the production retry path.
+REAL_CHAT_JSON = meta_client.chat_json
+
 
 def expect(cond, msg):
     # type: (bool, str) -> None
@@ -69,15 +74,13 @@ BASE11 = "23456789012"
 GOOD_AADHAAR = BASE11 + checks.aadhaar_check_digit(BASE11)
 BAD_AADHAAR = GOOD_AADHAAR[:-1] + str((int(GOOD_AADHAAR[-1]) + 1) % 10)
 
-NAME_OK = "Ramesh Patel"
-# One changed letter scores exactly 0.9, which rules treat as a match
-# (NAME_THRESHOLD is a strict < 0.9), so the case_a mismatch also adds
-# a middle initial and drops below the threshold.
-NAME_STUBBORN = "Ramesh Patil"
-NAME_BAD = "Ramesh K Patil"
+NAME_OK = "Priya Ramesh Patil"
+# The real case_a income certificate spells the surname Patel: one changed
+# letter in a token must score below 0.9 so the rules flag NAME_MISMATCH.
+NAME_BAD = "Priya Ramesh Patel"
 
-Q_NAME = "Name: Ramesh Patel"
-Q_FATHER = "Father: Suresh Patel"
+Q_NAME = "Name: Priya Ramesh Patil"
+Q_FATHER = "Father: Ramesh Patil"
 Q_DOB = "DOB: 12/04/2002"
 Q_GENDER = "Sex: Male"
 Q_AADHAAR = "Aadhaar number " + GOOD_AADHAAR
@@ -89,8 +92,8 @@ Q_MAX = "Max: 1000"
 Q_PCT = "Percentage: 65"
 Q_CAT = "Category: OBC"
 Q_INC = "Annual income Rs. 1,20,000"
-Q_HOLDER_OK = "Holder: Ramesh Patel"
-Q_HOLDER_BAD = "Holder: Ramesh K Patil"
+Q_HOLDER_OK = "Holder: Priya Ramesh Patil"
+Q_HOLDER_BAD = "Holder: Priya Ramesh Patel"
 Q_ACCT = "Account: 123456789012"
 Q_IFSC = "IFSC: HDFC0001234"
 Q_BANK = "Bank: HDFC Bank"
@@ -171,8 +174,9 @@ def fake_chat(prompt, image_path=None, tools=None, system=None, images=None):
     return SimpleNamespace(content="HINDI: " + text, tool_calls=None)
 
 
-def fake_chat_json(prompt, image_path=None, system=None):
-    # type: (str, Optional[str], Optional[str]) -> Any
+def fake_chat_json(prompt, image_path=None, system=None,
+                   consent_retry=False):
+    # type: (str, Optional[str], Optional[str], bool) -> Any
     """Stand-in for tools/pipeline chat_json: payload depends on the caller."""
     if system == tools.READ_SYSTEM:
         if not READS:
@@ -261,7 +265,7 @@ def read_payload(doc_type, holder, pairs):
 
 ID_PAIRS = [
     ("applicant_name", NAME_OK, Q_NAME),
-    ("father_name", "Suresh Patel", Q_FATHER),
+    ("father_name", "Ramesh Patil", Q_FATHER),
     ("date_of_birth", "12/04/2002", Q_DOB),
     ("gender", "Male", Q_GENDER),
     ("aadhaar_number", GOOD_AADHAAR, Q_AADHAAR),
@@ -372,11 +376,60 @@ def test_checks():
     expect(checks.name_similarity("Priya R Patil",
                                   "Priya Ramesh Patil") == 0.95,
            "initial-for-middle-name scores 0.95")
-    stubborn = checks.name_similarity("Ramesh Patil", "Ramesh Patel")
-    expect(stubborn == 0.9,
-           "Patil/Patel scores exactly 0.9 (threshold is strict < 0.9)")
+    expect(checks.verhoeff_valid("999900001231") is True,
+           "Verhoeff 999900001231 is valid (check digit 1)")
+    expect(checks.verhoeff_valid("999900001281") is False,
+           "Verhoeff 999900001281 is invalid")
+    stubborn = checks.name_similarity("Priya Ramesh Patil",
+                                      "Priya Ramesh Patel")
+    expect(stubborn < 0.9,
+           "Patil vs Patel scores below 0.9 (%s)" % (stubborn,))
     expect(checks.name_similarity(NAME_BAD, NAME_OK) < 0.9,
-           "Ramesh K Patil vs Ramesh Patel scores below 0.9")
+           "Priya Ramesh Patel vs Priya Ramesh Patil scores below 0.9")
+
+
+# ---------------------------------------------- 1b. refusal retry ---
+
+def test_refusal_retry():
+    # type: () -> None
+    print("--- 1b. vision refusal retry ---")
+    real_chat = meta_client.chat
+    good = ('{"doc_type": "other", "holder_name": null, "fields": [], '
+            '"unreadable": [], "quality": {"usable": true, "issues": [], '
+            '"advice": ""}}')
+    replies = ["I can't help with that.", good]
+    calls = []  # type: List[str]
+
+    def _chat(prompt, image_path=None, tools=None, system=None,
+              images=None):
+        calls.append(prompt)
+        return SimpleNamespace(content=replies.pop(0), tool_calls=None)
+
+    meta_client.chat = _chat  # type: ignore[assignment]
+    try:
+        data = REAL_CHAT_JSON("read this", consent_retry=True)
+        expect(data.get("doc_type") == "other",
+               "consent retry recovers after one refusal")
+        expect(len(calls) == 2 and "consented" in calls[1],
+               "retry appends the consent line")
+        expect(meta_client.is_refusal("I can't help with that"),
+               "refusal wording is detected")
+        expect(not meta_client.is_refusal(good),
+               "a JSON read is not a refusal")
+
+        def _refuse(*args, **kwargs):
+            return SimpleNamespace(
+                content="I can't help for privacy reasons.",
+                tool_calls=None)
+
+        meta_client.chat = _refuse  # type: ignore[assignment]
+        try:
+            REAL_CHAT_JSON("read this", consent_retry=True)
+            expect(False, "a double refusal raises RefusalError")
+        except meta_client.RefusalError:
+            expect(True, "a double refusal raises RefusalError")
+    finally:
+        meta_client.chat = real_chat  # type: ignore[assignment]
 
 
 # ---------------------------------------------------------- 2. rules ---
@@ -472,8 +525,9 @@ def test_case_a():
         ("submit_form", {}),
         ("flag_discrepancy",
          {"target": "bank_account_holder",
-          "detail": ("Passbook shows Ramesh K Patil but the ID card shows "
-                     "Ramesh Patel; applicant to confirm the spelling.")}),
+          "detail": ("Passbook shows Priya Ramesh Patel but the ID card "
+                     "shows Priya Ramesh Patil; applicant to confirm the "
+                     "spelling.")}),
         ("submit_form", {}),
     ])
     rec, history = agent.run(rec, history)
@@ -719,6 +773,7 @@ def main():
                                "offline_pack_no")]
     try:
         test_checks()
+        test_refusal_retry()
         test_rules()
         test_case_a()
         test_case_c(workdir)

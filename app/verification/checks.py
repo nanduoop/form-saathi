@@ -23,7 +23,7 @@ _P = [
     [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
     [1, 5, 7, 6, 2, 8, 3, 0, 9, 4],
     [5, 8, 0, 3, 7, 9, 6, 1, 4, 2],
-    [8, 9, 1, 6, 0, 4, 3, 7, 2, 5],
+    [8, 9, 1, 6, 0, 4, 3, 5, 2, 7],
     [9, 4, 5, 3, 1, 2, 6, 8, 7, 0],
     [4, 2, 8, 6, 5, 7, 3, 9, 0, 1],
     [2, 7, 9, 3, 8, 0, 6, 4, 1, 5],
@@ -39,6 +39,15 @@ def _verhoeff_ok(digits):
     for i, ch in enumerate(reversed(digits)):
         c = _D[c][_P[i % 8][int(ch)]]
     return c == 0
+
+
+def verhoeff_valid(value):
+    # type: (Any) -> bool
+    """Pure Verhoeff checksum over the digit string (no leading-digit rule)."""
+    d = _digits(value)
+    if not d:
+        return False
+    return _verhoeff_ok(d)
 
 
 def aadhaar_check_digit(base11):
@@ -274,7 +283,15 @@ def name_similarity(a, b):
         # "PRIYA R PATIL" against "Priya Ramesh Patil".
         return 0.95
     if len(ta) == len(tb):
-        return sum(_tok_match(x, y) for x, y in zip(ta, tb)) / len(ta)
+        ratio = sum(_tok_match(x, y) for x, y in zip(ta, tb)) / len(ta)
+        for x, y in zip(ta, tb):
+            if x == y:
+                continue
+            if (len(x) == 1 and y.startswith(x)) or \
+                    (len(y) == 1 and x.startswith(y)):
+                continue
+            return min(ratio, 0.8)
+        return ratio
     total = 0.0
     j = 0
     for tok in shorter:
