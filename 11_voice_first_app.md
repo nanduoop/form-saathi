@@ -18,6 +18,13 @@ Saathi is a friendly helper voice. Every screen speaks its main line automatical
 8. Result: big outcome ("You can apply for Post-Matric Scholarship" / "Not eligible because ..."), the plan as numbered illustrated step cards, each with a play button to hear it; closed deadlines visibly marked. Buttons: "Download documents for upload" (pack.zip, with sizes), "See the filled form", "I confirm these details are true". A small "See the proof" link opens /console?case=<id> (make the console accept ?case= to load an existing case).
 Back button on every step; state kept in sessionStorage so a refresh resumes the case.
 
+## Regional-language voice (required)
+Saathi must SPEAK every line in the chosen regional language, not English.
+- First probe Meta for speech output: try client.audio.speech.create with each model id the API lists that contains "voice" or "speech" (e.g. muse-voice-*), input a short Hindi line, and record the result in the report. If one works, add POST /speak {text, lang} -> audio/mpeg (cache files by hash under app/state/tts/) and have the app play that audio.
+- Otherwise (or as fallback) use browser speechSynthesis: pick the best installed voice whose lang starts with the language code (hi, kn, mr, te, ta, bn), preferring names containing "Google", "Enhanced" or "Premium". Load voices after the voiceschanged event. Marathi may fall back to a Hindi voice (same script); say so in the UI only if no mr voice exists.
+- Every spoken line must be the applicant-language text (progress lines, questions, warnings, plan steps, fixed UI lines from the dictionary); never speak English when another language is chosen.
+- Add a small "Voice: <voice name>" note in settings so the demo can show which voice is used.
+
 ## Visual design
 - Feel: warm, trustworthy, Indian, not a dashboard. Palette as CSS variables: ink #1d2433, paper #fbf7f0 (explicit body background, light theme only, set color-scheme: light), primary deep teal #0f5e63, accent marigold #f2a516, success #2e7d32, warning amber #b26a00 on #fff4dc, danger #b3261e.
 - Type: Google Fonts "Noto Sans" plus the script fonts (Noto Sans Devanagari, Kannada, Telugu, Tamil, Bengali). Base 18px, headings 26-30px, line-height 1.5.
