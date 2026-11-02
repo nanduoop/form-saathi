@@ -46,6 +46,7 @@ import agent  # noqa: E402
 import pipeline  # noqa: E402
 import web  # noqa: E402
 import render  # noqa: E402
+import upload_pack  # noqa: E402
 from case_record import CaseRecord  # noqa: E402
 from verification import checks  # noqa: E402
 from verification import rules  # noqa: E402
@@ -582,6 +583,124 @@ def test_case_c(workdir):
            "plan cites the government source of the kept fact")
 
 
+# ------------------------------------------------------- 5. upload pack ---
+
+def make_noisy(path, width=3000, height=2000):
+    # type: (str, int, int) -> None
+    """Write harsh random-noise JPEG that only fits after compression."""
+    from PIL import Image
+    img = Image.frombytes("RGB", (width, height),
+                          os.urandom(width * height * 3))
+    img.save(path, "JPEG", quality=90)
+
+
+def pack_record(case_id, crop):
+    # type: (str, str) -> CaseRecord
+    """One cited income-certificate document for Priya Patil."""
+    rec = CaseRecord(case_id=case_id, language="hi")
+    rec.profile = {"name": "Priya Patil", "category": "OBC",
+                   "annual_family_income": 120000}
+    rec.documents = [{
+        "id": "d1", "photo": crop, "photo_index": 0, "box": None,
+        "crop": crop, "doc_type": "income_certificate",
+        "holder_name": "Priya Patil",
+        "fields": [{"key": "annual_family_income",
+                    "value": "Rs. 1,20,000",
+                    "quote": "Annual income Rs. 1,20,000"}],
+        "quality": {"usable": True, "issues": [], "advice": ""},
+        "unreadable": [], "sam_found": True, "cut_edges": False,
+        "area_ratio": 0.8, "rejected": False,
+    }]
+    rec.fields = {
+        "annual_family_income": {
+            "value": "Rs. 1,20,000",
+            "source": {"type": "document", "doc_id": "d1",
+                       "quote": "Annual income Rs. 1,20,000"}},
+        "category": {
+            "value": "OBC",
+            "source": {"type": "document", "doc_id": "d1",
+                       "quote": "Category: OBC"}},
+    }
+    return rec
+
+
+def test_upload_pack(workdir):
+    # type: (str) -> None
+    print("--- 5. upload pack ---")
+    noisy = os.path.join(workdir, "noisy.jpg")
+    make_noisy(noisy)
+    real_check = upload_pack.readability_check
+    upload_pack.readability_check = lambda path, values: True  # type: ignore[assignment]
+    try:
+        rec = pack_record("offline_pack", noisy)
+        pack = upload_pack.make_pack(rec, "post_matric_scholarship")
+        expect(len(pack) == 1, "pack builds one file for the cited document")
+        r = pack[0]
+        expect(r["doc_id"] == "d1" and
+               r["doc_type"] == "income_certificate",
+               "pack result names the document")
+        expect(os.path.basename(
+            r["path"]) == "Priya_Patil_income_certificate.jpg",
+            "pack file is named Priya_Patil_income_certificate.jpg")
+        expect(os.path.getsize(r["path"]) <= 200 * 1024,
+               "noisy 3000x2000 pack output is under 200 KB")
+        expect(r["px"] <= 1200,
+               "pack output long side is at most 1200 px")
+        expect(r["format"] in ("jpg", "pdf"),
+               "pack output format is allowed")
+        expect(r["checks"].get("size_ok") and
+               r["checks"].get("format_ok"),
+               "pack deterministic checks pass")
+        expect(r["checks"].get("readable") is True,
+               "stubbed Spark readability check passes")
+        expect(r["rule_source"] == "default",
+               "pack uses default limits without an upload_limit fact")
+
+        pdf_upload = {"default": {"formats": ["pdf"], "max_kb": 200,
+                                  "min_kb": 10, "max_px": 1200,
+                                  "min_dpi_hint": 150},
+                      "per_doc": {}, "source": "default"}
+        pack_pdf = upload_pack.make_pack(rec, "post_matric_scholarship",
+                                         upload=pdf_upload)
+        expect(len(pack_pdf) == 1 and
+               pack_pdf[0]["format"] == "pdf",
+               "a pdf-only rule produces a PDF")
+        with open(pack_pdf[0]["path"], "rb") as f:
+            magic = f.read(5)
+        expect(magic == b"%PDF-",
+               "the pdf-only pack file is a valid PDF")
+        expect(os.path.getsize(pack_pdf[0]["path"]) <= 200 * 1024,
+               "the pdf-only pack file is under 200 KB")
+
+        parsed = web.parse_upload_rule(
+            "The file size should not exceed 100 KB. "
+            "Only PDF format is allowed.")
+        expect(parsed == {"max_kb": 100, "formats": ["pdf"]},
+               "upload_limit text parses to max_kb 100 and [pdf]")
+
+        section = upload_pack.scheme_upload_section(
+            "post_matric_scholarship")
+        facts = [{"id": "f9", "kind": "upload_limit",
+                  "text": ("The file size should not exceed 100 KB. "
+                           "Only PDF format is allowed."),
+                  "quote": "should not exceed 100 KB",
+                  "scheme_id": "post_matric_scholarship"}]
+        rule, source = upload_pack.rule_for_doc(section, "income_certificate",
+                                                facts)
+        expect(rule.get("max_kb") == 100 and
+               rule.get("formats") == ["pdf"] and source == "f9",
+               "a verified upload_limit fact overrides the defaults")
+
+        upload_pack.readability_check = lambda path, values: False  # type: ignore[assignment]
+        rec2 = pack_record("offline_pack_no", noisy)
+        pack_no = upload_pack.make_pack(rec2, "post_matric_scholarship")
+        expect(pack_no[0]["checks"].get("readable")
+               == "needs_manual_check",
+               "a failed read check retries once, then needs_manual_check")
+    finally:
+        upload_pack.readability_check = real_check
+
+
 # --------------------------------------------------------------- main ---
 
 def cleanup(paths):
@@ -596,12 +715,14 @@ def main():
     install_stubs()
     workdir = tempfile.mkdtemp(prefix="formsaathi_offline_")
     state_dirs = [os.path.join(APP, "state", name)
-                  for name in ("offline_a", "offline_c")]
+                  for name in ("offline_a", "offline_c", "offline_pack",
+                               "offline_pack_no")]
     try:
         test_checks()
         test_rules()
         test_case_a()
         test_case_c(workdir)
+        test_upload_pack(workdir)
     finally:
         cleanup(state_dirs + [workdir])
     print("ALL OFFLINE TESTS PASSED")

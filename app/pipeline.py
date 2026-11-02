@@ -471,9 +471,42 @@ def _form(record, history):
         log_agent(record, "form", "paused: waiting for applicant answer",
                   {"questions": record.questions[-1:]})
         return
+    if record.status == "awaiting_signoff" and form_scheme is not None:
+        _build_pack(record, form_scheme.get("scheme_id"))
     record.stage = "plan"
     log_agent(record, "form", "Task 3 loop ended with status %s"
               % (record.status,), {"status": record.status})
+
+
+# ----------------------------------------------------------------- pack ---
+
+def _build_pack(record, scheme_id):
+    # type: (CaseRecord, str) -> None
+    """Build the upload-ready document pack after signoff (before planning)."""
+    try:
+        import upload_pack
+        pack = upload_pack.make_pack(record, scheme_id)
+    except Exception as e:
+        log_agent(record, "pack", "upload pack failed: %s" % (e,), {})
+        return
+    record.pack = pack
+    try:
+        import upload_pack as _up
+        section = _up.scheme_upload_section(scheme_id)
+        limit = int((section.get("default") or {}).get("max_kb", 200))
+    except Exception:
+        limit = 200
+    need_manual = [p for p in pack
+                   if (p.get("checks") or {}).get("readable")
+                   != True]  # noqa: E712
+    if need_manual:
+        message = ("Upload pack: %d file(s) ready, all under %d KB; "
+                   "%d need(s) a manual check."
+                   % (len(pack), limit, len(need_manual)))
+    else:
+        message = ("Upload pack: %d file(s) ready, all under %d KB, "
+                   "still readable." % (len(pack), limit))
+    log_agent(record, "pack", message, {"pack": pack})
 
 
 # ------------------------------------------------------------------ plan ---
@@ -491,11 +524,18 @@ def _plan(record, history):
             for d in (record.discrepancies or [])] or ["(none)"]
     eligible = [s["scheme_id"] for s in (record.schemes or [])
                 if s.get("status") == "eligible"]
+    pack_note = ""
+    if getattr(record, "pack", None):
+        names = ", ".join(os.path.basename(p.get("path", ""))
+                          for p in record.pack)
+        pack_note = ("\nUpload pack files ready: %s. You may add a step "
+                     "telling the applicant to upload the files from "
+                     "your pack on the portal." % names)
     try:
         data = meta_client.chat_json(
             PLAN_PROMPT % ("\n".join(lines) or "(no verified facts)",
                            "\n".join(disc), json.dumps(record.profile or {}),
-                           ", ".join(eligible) or "(none)"),
+                           ", ".join(eligible) or "(none)") + pack_note,
             system=PLAN_SYSTEM)
     except Exception as e:
         data = {}

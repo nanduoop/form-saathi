@@ -155,6 +155,14 @@ Or type below:</p>
 <button id="confirmBtn">I confirm these details are true</button>
 </section>
 
+<section class="card hidden" id="packCard">
+<h2>Upload pack</h2>
+<div id="packList"></div>
+<div class="row">
+<button id="packAll" class="secondary">Download all</button>
+</div>
+</section>
+
 <script>
 "use strict";
 var caseId = null, lastQ = null, lastPoll = null;
@@ -212,6 +220,52 @@ return "["+(e.agent||"?")+"] "+(e.message||"");}).join("\n");
 el("log").textContent = log;
 renderSchemes(d); renderDocs(d); renderFields(d);
 renderQuestion(d); renderRetakes(d); renderPlan(d); renderResult(d);
+renderPack(d);
+}
+function packFactUrl(d, fid){
+var research = d.research || {};
+var ids = Object.keys(research);
+for(var i = 0; i < ids.length; i++){
+var facts = (research[ids[i]] || {}).facts || [];
+for(var j = 0; j < facts.length; j++){
+if(facts[j].id === fid && facts[j].url) return facts[j].url;
+}}
+return null;
+}
+function renderPack(d){
+var pack = d.pack || [];
+if(!pack.length) return;
+show("packCard");
+el("packList").innerHTML = pack.map(function(f){
+var name = String(f.path || "").split("/").pop();
+var src = "/cases/"+esc(caseId)+"/pack/"+esc(name);
+var thumb = f.format === "pdf"
+? '<p><a href="'+src+'">'+esc(name)+'</a></p>'
+: '<img loading="lazy" alt="upload-ready '+esc(f.doc_type)+
+'" src="'+src+'">';
+var limit = f.max_kb || 200;
+var sizeLine = esc(f.kb)+" KB, under the "+esc(limit)+" KB limit";
+var srcLine;
+if(!f.rule_source || f.rule_source === "default"){
+srcLine = "default portal limits";
+}else{
+var url = packFactUrl(d, f.rule_source);
+srcLine = url
+? '<a href="'+esc(url)+
+'" target="_blank" rel="noopener">official fact '+esc(f.rule_source)+
+'</a>'
+: "official fact "+esc(f.rule_source);
+}
+var read = (f.checks || {}).readable === true
+? '<span class="badge ok">readable &#10003;</span>'
+: '<span class="badge warn">needs a manual check</span>';
+return '<div class="doc"><h3>'+esc(name)+'</h3>'+thumb+
+'<div class="src">'+esc(f.format)+', '+sizeLine+'</div>'+
+'<div class="src">rule: '+srcLine+'</div>'+
+'<div>'+read+'</div></div>';}).join("");
+el("packAll").onclick = function(){
+window.location = "/cases/"+encodeURIComponent(caseId)+"/pack.zip";
+};
 }
 function renderSchemes(d){
 if(!d.schemes || !d.schemes.length) return;

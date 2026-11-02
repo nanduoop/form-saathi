@@ -57,6 +57,9 @@ class CaseRecord(object):
         self.photo_requests = []  # type: List[Any]
         self.confirmed = False  # type: bool
         self.confirmed_at = None  # type: Optional[str]
+        # upload pack (Task 8): [{doc_id, doc_type, path, format, kb, px,
+        #   rule_source, checks: {size_ok, format_ok, readable}}]
+        self.pack = []  # type: List[Dict[str, Any]]
 
     def add_log(self, message):
         # type: (Any) -> None
@@ -97,6 +100,7 @@ class CaseRecord(object):
             "photo_requests": list(self.photo_requests),
             "confirmed": bool(self.confirmed),
             "confirmed_at": self.confirmed_at,
+            "pack": [dict(p) for p in self.pack],
         }
 
     @classmethod
@@ -129,4 +133,5 @@ class CaseRecord(object):
         rec.photo_requests = list(data.get("photo_requests") or [])
         rec.confirmed = bool(data.get("confirmed", False))
         rec.confirmed_at = data.get("confirmed_at")
+        rec.pack = [dict(p) for p in (data.get("pack") or [])]
         return rec

@@ -211,6 +211,68 @@ def get_crop(case_id: str, doc_id: str):
     raise HTTPException(status_code=404, detail="unknown document")
 
 
+def _pack_entries(case_id):
+    # type: (str) -> List[Dict[str, Any]]
+    """Pack files for a case, each with a download name and url."""
+    _check_id(case_id)
+    try:
+        record, _history = agent.load(case_id)
+    except (OSError, ValueError, KeyError):
+        raise HTTPException(status_code=404, detail="unknown case")
+    out = []  # type: List[Dict[str, Any]]
+    for p in (getattr(record, "pack", None) or []):
+        entry = dict(p)
+        entry["name"] = os.path.basename(p.get("path") or "")
+        entry["url"] = ("/cases/%s/pack/%s" % (case_id, entry["name"]))
+        out.append(entry)
+    return out
+
+
+def _pack_path(case_id, name):
+    # type: (str, str) -> str
+    safe = os.path.basename(name or "")
+    if not safe:
+        raise HTTPException(status_code=404, detail="unknown file")
+    for p in _pack_entries(case_id):
+        if p.get("name") == safe and os.path.exists(p.get("path") or ""):
+            return str(p["path"])
+    raise HTTPException(status_code=404, detail="unknown file")
+
+
+@app.get("/cases/{case_id}/pack")
+def get_pack(case_id: str):
+    # type: (str) -> Dict[str, Any]
+    return {"files": _pack_entries(case_id)}
+
+
+@app.get("/cases/{case_id}/pack/{name}")
+def get_pack_file(case_id: str, name: str):
+    # type: (str, str) -> FileResponse
+    path = _pack_path(case_id, name)
+    media = ("application/pdf" if path.lower().endswith(".pdf")
+             else "image/jpeg")
+    return FileResponse(path, media_type=media,
+                        filename=os.path.basename(path))
+
+
+@app.get("/cases/{case_id}/pack.zip")
+def get_pack_zip(case_id: str):
+    # type: (str) -> FileResponse
+    import zipfile
+    _check_id(case_id)
+    files = [p for p in _pack_entries(case_id)
+             if os.path.exists(p.get("path") or "")]
+    if not files:
+        raise HTTPException(status_code=404, detail="pack is empty")
+    dest = os.path.join(state_dir(case_id), "pack.zip")
+    with zipfile.ZipFile(dest, "w",
+                         compression=zipfile.ZIP_STORED) as zf:
+        for p in files:
+            zf.write(str(p["path"]), arcname=str(p["name"]))
+    return FileResponse(dest, media_type="application/zip",
+                        filename="%s_pack.zip" % case_id)
+
+
 @app.post("/cases/{case_id}/answer")
 async def post_answer(case_id: str, request: Request):
     # type: (str, Request) -> Dict[str, Any]

@@ -91,6 +91,21 @@ def show(record, history=None):
             print("  - %s: %s" % (step.get("title"), step.get("detail")))
             for url in step.get("source_urls") or []:
                 print("    src: %s" % url)
+    pack = getattr(record, "pack", None) or []
+    if pack:
+        print("--- upload pack ---")
+        for p in pack:
+            checks = p.get("checks") or {}
+            tick = ("readable" if checks.get("readable") is True
+                    else "needs a manual check")
+            src = p.get("rule_source") or "default"
+            src_txt = ("default limits" if src == "default"
+                       else "official fact %s" % src)
+            print("  - %s (%s, %s KB of %s KB, long side %s px) %s [%s]"
+                  % (p.get("path", "").split("/")[-1], p.get("format"),
+                     p.get("kb"), p.get("max_kb"), p.get("px"), tick,
+                     src_txt))
+        print("  download: /cases/%s/pack.zip" % record.case_id)
     print("--- next ---")
     print(next_command(record))
 

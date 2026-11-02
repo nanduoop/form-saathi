@@ -23,7 +23,8 @@ CACHE_DIR = os.path.join(HERE, "research_cache")
 
 HEADERS = {"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) FormSaathi/1.0"}
 
-FACT_KINDS = ("portal", "deadline", "document", "step", "eligibility")
+FACT_KINDS = ("portal", "deadline", "document", "step", "eligibility",
+              "upload_limit")
 
 EXTRACT_SYSTEM = (
     "You extract scholarship application facts from a web page. "
@@ -38,11 +39,14 @@ Page text:
 ---
 
 Reply with exactly one JSON object:
-{"facts": [{"kind": "portal|deadline|document|step|eligibility",
+{"facts": [{"kind": "portal|deadline|document|step|eligibility|upload_limit",
 "text": "one short fact in plain words",
 "quote": ">= 12 characters copied VERBATIM from the page text above"}]}
 Only include facts stated on this page. Copy each quote word-for-word
-from the page text. Skip anything you cannot quote verbatim."""
+from the page text. Skip anything you cannot quote verbatim.
+When the page states an upload rule, capture it as kind "upload_limit",
+for example "file size should not exceed 200 KB" or
+"only PDF/JPG format is allowed"."""
 
 
 def offline_only():
@@ -227,6 +231,41 @@ def verify_facts(facts, page_text):
         kept.append({"kind": f["kind"], "text": str(f["text"]),
                      "quote": str(f.get("quote"))})
     return kept, dropped
+
+
+def parse_upload_rule(text):
+    # type: (str) -> Optional[Dict[str, Any]]
+    """Parse an upload_limit fact text into {"max_kb", "formats"}.
+
+    Finds the first "<number> KB/MB" size and the words pdf/jpg/jpeg/png.
+    Returns None when the text states neither a size nor a format.
+    """
+    s = "" if text is None else str(text)
+    max_kb = None  # type: Optional[int]
+    m = re.search(r"(\d+(?:\.\d+)?)\s*(MB|KB)", s, re.IGNORECASE)
+    if m:
+        try:
+            val = float(m.group(1))
+        except ValueError:
+            val = 0.0
+        if m.group(2).upper() == "MB":
+            max_kb = int(val * 1024)
+        else:
+            max_kb = int(val)
+    found = []  # type: List[Any]
+    for name, canon in (("pdf", "pdf"), ("jpg", "jpg"), ("jpeg", "jpg"),
+                        ("png", "png")):
+        mm = re.search(r"\b%s\b" % name, s, re.IGNORECASE)
+        if mm:
+            found.append((mm.start(), canon))
+    found.sort()
+    formats = []  # type: List[str]
+    for _, canon in found:
+        if canon not in formats:
+            formats.append(canon)
+    if max_kb is None and not formats:
+        return None
+    return {"max_kb": max_kb, "formats": formats}
 
 
 def extract_facts(page_text, scheme_title, source_index, url):

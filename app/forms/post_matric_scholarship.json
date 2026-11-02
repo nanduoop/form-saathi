@@ -3,31 +3,207 @@
   "title": "Post-Matric Scholarship (demo)",
   "note": "Demo form. Eligibility limits are illustrative, not official.",
   "eligibility": {
-    "categories": ["SC", "ST", "OBC"],
+    "categories": [
+      "SC",
+      "ST",
+      "OBC"
+    ],
     "max_annual_income": 250000,
     "min_previous_percentage": 50
   },
-  "name_fields": ["applicant_name", "bank_account_holder"],
+  "name_fields": [
+    "applicant_name",
+    "bank_account_holder"
+  ],
   "fields": [
-    {"id": "applicant_name", "label": "Applicant name", "doc_types": ["identity_card", "marksheet"], "voice_ok": false, "check": null},
-    {"id": "father_name", "label": "Father's name", "doc_types": ["identity_card", "income_certificate", "marksheet"], "voice_ok": true, "check": null},
-    {"id": "date_of_birth", "label": "Date of birth", "doc_types": ["identity_card", "marksheet"], "voice_ok": false, "check": "date"},
-    {"id": "gender", "label": "Gender", "doc_types": ["identity_card"], "voice_ok": true, "check": "gender"},
-    {"id": "aadhaar_number", "label": "Aadhaar number", "doc_types": ["identity_card"], "voice_ok": false, "check": "aadhaar"},
-    {"id": "address", "label": "Address", "doc_types": ["identity_card", "income_certificate"], "voice_ok": true, "check": null},
-    {"id": "pin_code", "label": "PIN code", "doc_types": ["identity_card", "income_certificate"], "voice_ok": true, "check": "pin"},
-    {"id": "mobile_number", "label": "Mobile number", "doc_types": [], "voice_ok": true, "check": "mobile"},
-    {"id": "category", "label": "Category (SC/ST/OBC)", "doc_types": ["income_certificate", "caste_certificate"], "voice_ok": false, "check": "category"},
-    {"id": "annual_family_income", "label": "Annual family income", "doc_types": ["income_certificate"], "voice_ok": false, "check": "income"},
-    {"id": "previous_exam", "label": "Previous exam passed", "doc_types": ["marksheet"], "voice_ok": false, "check": null},
-    {"id": "previous_marks_obtained", "label": "Previous marks obtained", "doc_types": [], "voice_ok": false, "check": "int"},
-    {"id": "previous_marks_max", "label": "Previous marks maximum", "doc_types": [], "voice_ok": false, "check": "int"},
-    {"id": "previous_percentage", "label": "Previous percentage", "doc_types": [], "voice_ok": false, "check": "percentage"},
-    {"id": "current_course", "label": "Current course", "doc_types": [], "voice_ok": true, "check": null},
-    {"id": "institution_name", "label": "Institution name", "doc_types": [], "voice_ok": true, "check": null},
-    {"id": "bank_account_holder", "label": "Bank account holder name", "doc_types": ["bank_passbook"], "voice_ok": false, "check": null},
-    {"id": "bank_account_number", "label": "Bank account number", "doc_types": ["bank_passbook"], "voice_ok": false, "check": "account"},
-    {"id": "ifsc_code", "label": "IFSC code", "doc_types": ["bank_passbook"], "voice_ok": false, "check": "ifsc"},
-    {"id": "bank_name", "label": "Bank name", "doc_types": ["bank_passbook"], "voice_ok": false, "check": null}
-  ]
+    {
+      "id": "applicant_name",
+      "label": "Applicant name",
+      "doc_types": [
+        "identity_card",
+        "marksheet"
+      ],
+      "voice_ok": false,
+      "check": null
+    },
+    {
+      "id": "father_name",
+      "label": "Father's name",
+      "doc_types": [
+        "identity_card",
+        "income_certificate",
+        "marksheet"
+      ],
+      "voice_ok": true,
+      "check": null
+    },
+    {
+      "id": "date_of_birth",
+      "label": "Date of birth",
+      "doc_types": [
+        "identity_card",
+        "marksheet"
+      ],
+      "voice_ok": false,
+      "check": "date"
+    },
+    {
+      "id": "gender",
+      "label": "Gender",
+      "doc_types": [
+        "identity_card"
+      ],
+      "voice_ok": true,
+      "check": "gender"
+    },
+    {
+      "id": "aadhaar_number",
+      "label": "Aadhaar number",
+      "doc_types": [
+        "identity_card"
+      ],
+      "voice_ok": false,
+      "check": "aadhaar"
+    },
+    {
+      "id": "address",
+      "label": "Address",
+      "doc_types": [
+        "identity_card",
+        "income_certificate"
+      ],
+      "voice_ok": true,
+      "check": null
+    },
+    {
+      "id": "pin_code",
+      "label": "PIN code",
+      "doc_types": [
+        "identity_card",
+        "income_certificate"
+      ],
+      "voice_ok": true,
+      "check": "pin"
+    },
+    {
+      "id": "mobile_number",
+      "label": "Mobile number",
+      "doc_types": [],
+      "voice_ok": true,
+      "check": "mobile"
+    },
+    {
+      "id": "category",
+      "label": "Category (SC/ST/OBC)",
+      "doc_types": [
+        "income_certificate",
+        "caste_certificate"
+      ],
+      "voice_ok": false,
+      "check": "category"
+    },
+    {
+      "id": "annual_family_income",
+      "label": "Annual family income",
+      "doc_types": [
+        "income_certificate"
+      ],
+      "voice_ok": false,
+      "check": "income"
+    },
+    {
+      "id": "previous_exam",
+      "label": "Previous exam passed",
+      "doc_types": [
+        "marksheet"
+      ],
+      "voice_ok": false,
+      "check": null
+    },
+    {
+      "id": "previous_marks_obtained",
+      "label": "Previous marks obtained",
+      "doc_types": [],
+      "voice_ok": false,
+      "check": "int"
+    },
+    {
+      "id": "previous_marks_max",
+      "label": "Previous marks maximum",
+      "doc_types": [],
+      "voice_ok": false,
+      "check": "int"
+    },
+    {
+      "id": "previous_percentage",
+      "label": "Previous percentage",
+      "doc_types": [],
+      "voice_ok": false,
+      "check": "percentage"
+    },
+    {
+      "id": "current_course",
+      "label": "Current course",
+      "doc_types": [],
+      "voice_ok": true,
+      "check": null
+    },
+    {
+      "id": "institution_name",
+      "label": "Institution name",
+      "doc_types": [],
+      "voice_ok": true,
+      "check": null
+    },
+    {
+      "id": "bank_account_holder",
+      "label": "Bank account holder name",
+      "doc_types": [
+        "bank_passbook"
+      ],
+      "voice_ok": false,
+      "check": null
+    },
+    {
+      "id": "bank_account_number",
+      "label": "Bank account number",
+      "doc_types": [
+        "bank_passbook"
+      ],
+      "voice_ok": false,
+      "check": "account"
+    },
+    {
+      "id": "ifsc_code",
+      "label": "IFSC code",
+      "doc_types": [
+        "bank_passbook"
+      ],
+      "voice_ok": false,
+      "check": "ifsc"
+    },
+    {
+      "id": "bank_name",
+      "label": "Bank name",
+      "doc_types": [
+        "bank_passbook"
+      ],
+      "voice_ok": false,
+      "check": null
+    }
+  ],
+  "upload": {
+    "default": {
+      "formats": [
+        "jpg",
+        "pdf"
+      ],
+      "max_kb": 200,
+      "min_kb": 10,
+      "max_px": 1200,
+      "min_dpi_hint": 150
+    },
+    "per_doc": {},
+    "source": "default"
+  }
 }
