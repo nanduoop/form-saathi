@@ -25,6 +25,13 @@ Saathi must SPEAK every line in the chosen regional language, not English.
 - Every spoken line must be the applicant-language text (progress lines, questions, warnings, plan steps, fixed UI lines from the dictionary); never speak English when another language is chosen.
 - Add a small "Voice: <voice name>" note in settings so the demo can show which voice is used.
 
+## Extra voice touches
+- Document by document: on the documents screen Saathi asks for each needed document by voice ("Now show me your Aadhaar card, keep all four corners inside the frame"); chips for each document turn green as SAM/Spark accept them.
+- Listening stops automatically after ~1.5 s of silence (Web Audio level check), with tap-to-stop as backup.
+- Numbers and names heard are read back: "I heard 9 8 7 6 5 4 3 2 1 0. Is that right?" with big Yes / Say again buttons (and saying "haan"/"yes" works).
+- Captions: every spoken line is visible as text on screen at the same time.
+- Footer: "Built with Meta SAM 3.1, Muse Spark, Muse Voice and Muse Image" and a "For judges: see how it works" link to /console.
+
 ## Visual design
 - Feel: warm, trustworthy, Indian, not a dashboard. Palette as CSS variables: ink #1d2433, paper #fbf7f0 (explicit body background, light theme only, set color-scheme: light), primary deep teal #0f5e63, accent marigold #f2a516, success #2e7d32, warning amber #b26a00 on #fff4dc, danger #b3261e.
 - Type: Google Fonts "Noto Sans" plus the script fonts (Noto Sans Devanagari, Kannada, Telugu, Tamil, Bengali). Base 18px, headings 26-30px, line-height 1.5.
